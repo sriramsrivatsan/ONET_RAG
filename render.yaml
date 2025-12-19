@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: labor-market-rag
+    env: docker
+    region: oregon
+    plan: starter
+    branch: main
+    healthCheckPath: /_stcore/health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ENABLE_PERSISTENCE
+        value: true
+      - key: CHROMA_PERSIST_PATH
+        value: /data/chroma_db
+      - key: PYTHON_VERSION
+        value: 3.10.0
+    disk:
+      name: labor-rag-data
+      mountPath: /data
+      sizeGB: 10

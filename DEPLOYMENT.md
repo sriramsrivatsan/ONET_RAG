@@ -96,39 +96,41 @@ docker rm labor-rag
 
 ## Render Deployment
 
-### Method 1: Docker Deployment
+**📘 For detailed Render deployment instructions, see [RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md)**
 
-1. **Create Render Account**
+The application includes:
+- ✅ Optimized Dockerfile for Render
+- ✅ render.yaml for automatic configuration
+- ✅ Health check endpoints
+- ✅ Dynamic PORT handling
+- ✅ Persistent disk support
+
+### Quick Start with Render
+
+1. **Push to GitHub**
+   ```bash
+   git init
+   git add .
+   git commit -m "Initial commit"
+   git push origin main
+   ```
+
+2. **Create Render Blueprint**
    - Go to https://render.com
-   - Sign up or log in
+   - Click "New +" → "Blueprint"
+   - Connect your repository
+   - Render auto-configures from render.yaml
 
-2. **Create New Web Service**
-   - Click "New +" → "Web Service"
-   - Connect your GitHub repository
-   - Or use "Deploy an existing image from a registry"
+3. **Set API Key**
+   - Add `OPENAI_API_KEY` in environment variables
+   - Deploy!
 
-3. **Configure Service**
-   ```
-   Name: labor-market-rag
-   Region: Choose closest to your users
-   Branch: main
-   Runtime: Docker
-   Instance Type: Standard (2GB RAM minimum)
-   ```
+4. **Access Your App**
+   - URL: `https://your-service.onrender.com`
+   - Upload data via Admin panel
+   - Start querying!
 
-4. **Environment Variables**
-   - Add `OPENAI_API_KEY` with your key
-   - Add `CHROMA_PERSIST_PATH=/data/chroma_db`
-   - Add `ENABLE_PERSISTENCE=true`
-
-5. **Persistent Disk (Recommended)**
-   - Add disk mount at `/data`
-   - Size: 10GB minimum
-
-6. **Deploy**
-   - Click "Create Web Service"
-   - Wait for build and deployment
-   - Access your app at the provided URL
+For complete instructions including troubleshooting, monitoring, and advanced features, see **RENDER_DEPLOYMENT.md**.
 
 ### Method 2: Native Deployment
 
