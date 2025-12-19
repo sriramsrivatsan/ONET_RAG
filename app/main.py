@@ -5,8 +5,9 @@ import streamlit as st
 import sys
 import os
 
-# Add app directory to Python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add parent directory to Python path so 'app' module can be imported
+# This adds /app to Python path when running from /app/app/main.py
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.ui.admin import AdminView
 from app.ui.client import ClientView
