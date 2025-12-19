@@ -34,7 +34,7 @@ COPY --chown=user . .
 RUN mkdir -p /data/chroma_db && chown -R user:user /data/chroma_db
 
 # Create .streamlit directory for config
-RUN mkdir -p /root/.streamlit
+RUN mkdir -p /.streamlit && chown -R user:user /.streamlit
 
 # Create Streamlit config for Render
 RUN echo "\
@@ -50,7 +50,7 @@ gatherUsageStats = false\n\
 \n\
 [theme]\n\
 base = 'light'\n\
-" > /root/.streamlit/config.toml
+" > /.streamlit/config.toml
 
 # Expose port (Render will override this with PORT env var)
 EXPOSE 8501
