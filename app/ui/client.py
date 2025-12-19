@@ -109,17 +109,15 @@ class ClientView:
             key="main_query"
         )
         
-        # Query settings
+        # Query settings - Always retrieve all documents
         col1, col2 = st.columns([3, 1])
         
         with col1:
-            k_results = st.slider(
-                "Number of documents to retrieve",
-                min_value=5,
-                max_value=50,
-                value=10,
-                help="More documents = more comprehensive but slower"
-            )
+            # Get total document count
+            total_docs = st.session_state.get('document_count', 1000)
+            k_results = total_docs  # Retrieve all documents
+            
+            st.info(f"ℹ️ Retrieving all {total_docs:,} documents for comprehensive analysis")
         
         with col2:
             show_debug = st.checkbox("Show Debug Info", value=False)
