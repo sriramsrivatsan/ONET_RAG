@@ -28,7 +28,7 @@ RUN python -c "import nltk; \
     nltk.download('averaged_perceptron_tagger', quiet=True)"
 
 # Copy application code
-COPY . .
+COPY --chown=user . .
 
 # Create data directory for ChromaDB persistence
 RUN mkdir -p /data/chroma_db && chown -R user:user /data/chroma_db
