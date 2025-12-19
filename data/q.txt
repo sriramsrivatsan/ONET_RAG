@@ -1,0 +1,26 @@
+What jobs likely require one to create digital documents as part of the work. Digital documents include spreadsheets, Word documents. PDF files, photo images, video, computer programs, etc.  It includes almost anything one might create with a computer.  By contrast, don’t include jobs that only need to read digital documents. For example, some jobs such as order takers or customer service people might only need to read digital documents such as order forms, etc.
+
+What’s the total employment of workers that create digital documents as part of their job?
+
+What are the specific tasks that involve creating digital documents?  How much time per week on average do workers spend on these digital document tasks?
+
+What industries are rich in digital document users?  In other words, what industries have a high proportion of digital document workers?
+
+Can you give me a csv file of the total employment, by industry, of those who create digital documents as part of their job?
+ 
+I’ve got an idea for an customer service AI agentic solution. This agent can automate customer interactions. It can deliver personalized customer experiences by understanding customer needs answering questions resolving issues or recommending the right products and services. It works seamlessly across multiple channels including web mobile and point of sale and can be integrated into product experiences with voice or video. Can you tell me the jobs that could likely benefit from this agentic solution?
+
+Can you tell me the specific job tasks this solution could help with?
+
+Thinking of the specific tasks the agent can help with, how much total time each week do workers spend on these tasks?
+
+If this agent works as well as described, how much time could this agent potentially shave off the above tasks each week?
+
+Can you show me the top-10 occupations that could save the most time per week using this agent?
+
+Can you put the results above in a csv file for me to analyze further?
+
+This agent is somewhat new.  It might be risky for companies to adopt it.  What marketing or other recommendations do you have to encourage adoption?
+
+What’s the dollar savings this agentic solution could achieve? For example, if worker A could save 5 hours per week using this agentic solution, and if the worker is paid $40 per hour, they could save $200 per week. But that’s just one worker. Can you do this math for all occupations that might benefit from this solution and give the grand total?
+ 
