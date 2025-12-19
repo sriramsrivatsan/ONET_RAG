@@ -54,6 +54,79 @@ def initialize_session_state():
         st.session_state.index_check_done = False
 
 
+def save_session_state_to_disk(df, aggregations, cluster_results):
+    """Save session state data to disk for persistence"""
+    import pickle
+    from app.utils.helpers import ensure_directory
+    
+    if not config.ENABLE_PERSISTENCE:
+        return
+    
+    try:
+        # Create directory for session state data
+        state_dir = os.path.join(config.CHROMA_PERSIST_PATH, 'session_state')
+        ensure_directory(state_dir)
+        
+        # Save dataframe
+        df_path = os.path.join(state_dir, 'dataframe.pkl')
+        with open(df_path, 'wb') as f:
+            pickle.dump(df, f)
+        
+        # Save aggregations
+        agg_path = os.path.join(state_dir, 'aggregations.pkl')
+        with open(agg_path, 'wb') as f:
+            pickle.dump(aggregations, f)
+        
+        # Save cluster results
+        cluster_path = os.path.join(state_dir, 'cluster_results.pkl')
+        with open(cluster_path, 'wb') as f:
+            pickle.dump(cluster_results, f)
+        
+        logger.info("✓ Session state saved to disk", show_ui=False)
+        
+    except Exception as e:
+        logger.error(f"Failed to save session state: {str(e)}", show_ui=False)
+
+
+def load_session_state_from_disk():
+    """Load session state data from disk"""
+    import pickle
+    
+    if not config.ENABLE_PERSISTENCE:
+        return None, None, None
+    
+    try:
+        state_dir = os.path.join(config.CHROMA_PERSIST_PATH, 'session_state')
+        
+        # Check if state files exist
+        df_path = os.path.join(state_dir, 'dataframe.pkl')
+        agg_path = os.path.join(state_dir, 'aggregations.pkl')
+        cluster_path = os.path.join(state_dir, 'cluster_results.pkl')
+        
+        if not all([os.path.exists(df_path), os.path.exists(agg_path), os.path.exists(cluster_path)]):
+            return None, None, None
+        
+        # Load dataframe
+        with open(df_path, 'rb') as f:
+            df = pickle.load(f)
+        
+        # Load aggregations
+        with open(agg_path, 'rb') as f:
+            aggregations = pickle.load(f)
+        
+        # Load cluster results
+        with open(cluster_path, 'rb') as f:
+            cluster_results = pickle.load(f)
+        
+        logger.info("✓ Session state loaded from disk", show_ui=False)
+        
+        return df, aggregations, cluster_results
+        
+    except Exception as e:
+        logger.error(f"Failed to load session state: {str(e)}", show_ui=False)
+        return None, None, None
+
+
 def check_persisted_index():
     """Check for and load any persisted ChromaDB index on startup"""
     
@@ -68,6 +141,7 @@ def check_persisted_index():
     
     try:
         from app.rag.vector_store import VectorStore
+        from app.analytics.aggregations import DataAggregator
         
         # Initialize vector store if not already done
         if st.session_state.vector_store is None:
@@ -86,10 +160,30 @@ def check_persisted_index():
             if success:
                 st.session_state.vector_store_initialized = True
                 st.session_state.document_count = index_status['document_count']
-                logger.info(
-                    f"✓ Restored persisted index: {index_status['document_count']} documents",
-                    show_ui=False
-                )
+                
+                # Load session state data (dataframe, aggregations, cluster_results)
+                df, aggregations, cluster_results = load_session_state_from_disk()
+                
+                if df is not None:
+                    st.session_state.dataframe = df
+                    st.session_state.aggregations = aggregations
+                    st.session_state.cluster_results = cluster_results
+                    
+                    # Recreate aggregator
+                    aggregator = DataAggregator(df)
+                    st.session_state.aggregator = aggregator
+                    
+                    logger.info(
+                        f"✓ Restored complete state: {index_status['document_count']} documents, "
+                        f"{len(df)} rows",
+                        show_ui=False
+                    )
+                else:
+                    logger.info(
+                        f"✓ Restored index: {index_status['document_count']} documents "
+                        f"(dataframe not available)",
+                        show_ui=False
+                    )
         
         st.session_state.index_check_done = True
         

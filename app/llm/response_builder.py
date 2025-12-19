@@ -1,7 +1,7 @@
 """
 OpenAI integration and response building
 """
-import openai
+from openai import OpenAI
 from typing import Dict, List, Any, Optional
 import pandas as pd
 import streamlit as st
@@ -16,7 +16,7 @@ class ResponseBuilder:
     
     def __init__(self, api_key: str):
         self.api_key = api_key
-        openai.api_key = api_key
+        self.client = OpenAI(api_key=api_key)
         self.templates = PromptTemplates()
     
     def generate_response(
@@ -41,8 +41,8 @@ class ResponseBuilder:
                 routing_info=routing_info
             )
             
-            # Call OpenAI API
-            response = openai.ChatCompletion.create(
+            # Call OpenAI API with new client
+            response = self.client.chat.completions.create(
                 model=config.LLM_MODEL,
                 messages=[
                     {"role": "system", "content": self.templates.get_system_prompt()},
@@ -135,7 +135,7 @@ Generate a concise, descriptive label (3-5 words) that captures the essence of t
 Respond with ONLY the enhanced label, nothing else."""
                     
                     try:
-                        response = openai.ChatCompletion.create(
+                        response = self.client.chat.completions.create(
                             model=config.LLM_MODEL,
                             messages=[
                                 {"role": "system", "content": "You are a labor market data analyst."},

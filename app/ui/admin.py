@@ -214,6 +214,10 @@ class AdminView:
             st.session_state.document_count = vector_store.document_count
             st.session_state.last_ingestion_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             
+            # Save session state to disk for persistence
+            from app.main import save_session_state_to_disk
+            save_session_state_to_disk(df_processed, aggregations, cluster_results)
+            
             st.success("🎉 Data ingestion pipeline completed successfully!")
             
             # Show summary
