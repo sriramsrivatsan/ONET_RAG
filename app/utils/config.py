@@ -53,11 +53,22 @@ class Config:
     
     @classmethod
     def get_openai_api_key(cls) -> Optional[str]:
-        """Get OpenAI API key from Streamlit secrets or environment"""
+        """
+        Get OpenAI API key with proper priority order:
+        1. Environment variable (for Docker/Render/production)
+        2. Streamlit secrets.toml (for local development)
+        """
         try:
+            # Priority 1: Environment variable (Docker/Render)
+            env_key = os.getenv('OPENAI_API_KEY')
+            if env_key:
+                return env_key
+            
+            # Priority 2: Streamlit secrets (local development)
             if hasattr(st, 'secrets') and 'OPENAI_API_KEY' in st.secrets:
                 return st.secrets['OPENAI_API_KEY']
-            return os.getenv('OPENAI_API_KEY')
+            
+            return None
         except Exception:
             return None
     
