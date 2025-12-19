@@ -1,9 +1,6 @@
 # Use Python 3.10 slim image
 FROM python:3.10-slim
 
-RUN useradd -m -u 1000 user
-USER user
-
 # Set working directory
 WORKDIR /app
 
@@ -28,13 +25,13 @@ RUN python -c "import nltk; \
     nltk.download('averaged_perceptron_tagger', quiet=True)"
 
 # Copy application code
-COPY --chown=user . .
+COPY . .
 
 # Create data directory for ChromaDB persistence
-RUN mkdir -p /data/chroma_db && chown -R user:user /data/chroma_db
+RUN mkdir -p /data/chroma_db && chmod -R 777 /data/chroma_db
 
 # Create .streamlit directory for config
-RUN mkdir -p /.streamlit && chown -R user:user /.streamlit
+RUN mkdir -p /.streamlit
 
 # Create Streamlit config for Render
 RUN echo "\
