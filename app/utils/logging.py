@@ -26,9 +26,13 @@ class RAGLogger:
             handler.setFormatter(formatter)
             self.logger.addHandler(handler)
         
-        # Store logs for UI display
-        if 'system_logs' not in st.session_state:
-            st.session_state.system_logs = []
+        # Store logs for UI display - with safe initialization
+        try:
+            if 'system_logs' not in st.session_state:
+                st.session_state.system_logs = []
+        except (AttributeError, RuntimeError):
+            # Session state not available yet, will be initialized later
+            pass
     
     def info(self, message: str, show_ui: bool = False):
         """Log info message"""
@@ -52,16 +56,25 @@ class RAGLogger:
     
     def _add_to_ui_logs(self, level: str, message: str, show_ui: bool):
         """Add log entry to session state for UI display"""
-        log_entry = {
-            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'level': level,
-            'message': message
-        }
-        st.session_state.system_logs.append(log_entry)
-        
-        # Keep only last 100 logs
-        if len(st.session_state.system_logs) > 100:
-            st.session_state.system_logs = st.session_state.system_logs[-100:]
+        # Ensure system_logs is initialized (defensive programming)
+        try:
+            if 'system_logs' not in st.session_state:
+                st.session_state.system_logs = []
+            
+            log_entry = {
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'level': level,
+                'message': message
+            }
+            st.session_state.system_logs.append(log_entry)
+            
+            # Keep only last 100 logs
+            if len(st.session_state.system_logs) > 100:
+                st.session_state.system_logs = st.session_state.system_logs[-100:]
+        except (AttributeError, RuntimeError) as e:
+            # Session state not available - log to console only
+            print(f"[{level}] {message}")
+            return
         
         if show_ui:
             if level == 'ERROR':
@@ -80,9 +93,14 @@ class RAGLogger:
     
     def clear_ui_logs(self):
         """Clear UI logs"""
-        st.session_state.system_logs = []
-        self.info("Logs cleared")
+        try:
+            if 'system_logs' in st.session_state:
+                st.session_state.system_logs = []
+                self.info("Logs cleared")
+        except (AttributeError, RuntimeError):
+            pass
 
 
 # Global logger instance
+# Note: Session state initialization happens lazily in __init__ and _add_to_ui_logs
 logger = RAGLogger()
