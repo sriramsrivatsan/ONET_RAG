@@ -160,9 +160,15 @@ class AdminView:
             status_text.text("Step 5/6: Performing clustering...")
             progress_bar.progress(65)
             
-            clusterer = LaborMarketClusterer(df_processed)
-            cluster_results = clusterer.perform_all_clustering()
-            df_processed = clusterer.df  # Get updated dataframe with cluster IDs
+            try:
+                clusterer = LaborMarketClusterer(df_processed)
+                cluster_results = clusterer.perform_all_clustering()
+                df_processed = clusterer.df  # Get updated dataframe with cluster IDs
+            except Exception as e:
+                logger.warning(f"Clustering encountered issues: {str(e)}", show_ui=True)
+                st.warning("⚠️ Clustering completed with warnings. System will work but clustering features may be limited.")
+                # Continue without clustering
+                cluster_results = {}
             
             # Step 6: Vector indexing
             status_text.text("Step 6/6: Creating vector index...")

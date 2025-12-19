@@ -82,16 +82,45 @@ class LaborMarketClusterer:
             texts_sample = texts
             sample_indices = None
         
-        # TF-IDF vectorization
+        # TF-IDF vectorization with adaptive parameters
+        # Adjust min_df based on dataset size to avoid pruning all terms
+        dataset_size = len(texts_sample)
+        adaptive_min_df = 1 if dataset_size < 100 else max(1, min(2, int(dataset_size * 0.01)))
+        adaptive_max_df = 0.95 if dataset_size < 100 else 0.8
+        
         vectorizer = TfidfVectorizer(
             max_features=500,
             ngram_range=(1, 2),
-            min_df=2,
-            max_df=0.8,
+            min_df=adaptive_min_df,
+            max_df=adaptive_max_df,
             stop_words='english'
         )
         
-        tfidf_matrix = vectorizer.fit_transform(texts_sample)
+        try:
+            tfidf_matrix = vectorizer.fit_transform(texts_sample)
+            
+            # Check if we got any features
+            if tfidf_matrix.shape[1] == 0:
+                logger.warning(f"No features extracted for {field_name}, using simpler vectorization", show_ui=True)
+                # Fallback: use very permissive settings
+                vectorizer = TfidfVectorizer(
+                    max_features=100,
+                    ngram_range=(1, 1),
+                    min_df=1,
+                    max_df=1.0,
+                    stop_words=None
+                )
+                tfidf_matrix = vectorizer.fit_transform(texts_sample)
+                
+        except ValueError as e:
+            logger.error(f"Vectorization failed for {field_name}: {str(e)}", show_ui=True)
+            # Return empty results if vectorization fails completely
+            return {
+                'cluster_ids': [-1] * len(texts),
+                'cluster_labels': {0: f"{cluster_prefix}_unclustered"},
+                'n_clusters': 1,
+                'cluster_sizes': {0: len(texts)}
+            }
         self.vectorizers[cluster_prefix] = vectorizer
         
         # Dimensionality reduction if needed

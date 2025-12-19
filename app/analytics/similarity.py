@@ -41,7 +41,17 @@ class SimilarityAnalyzer:
             stop_words='english'
         )
         
-        tfidf_matrix = vectorizer.fit_transform(industry_tasks.values)
+        try:
+            tfidf_matrix = vectorizer.fit_transform(industry_tasks.values)
+        except ValueError as e:
+            logger.warning(f"Vectorization failed in cross-industry similarity: {str(e)}", show_ui=False)
+            return {
+                'industry_similarity_matrix': [],
+                'industries': [],
+                'top_similar_pairs': [],
+                'all_similar_pairs': []
+            }
+        
         self.vectorizers['industry_tasks'] = vectorizer
         
         # Compute cosine similarity
@@ -177,7 +187,14 @@ class SimilarityAnalyzer:
             stop_words='english'
         )
         
-        tfidf_matrix = vectorizer.fit_transform(occ_texts.values)
+        try:
+            tfidf_matrix = vectorizer.fit_transform(occ_texts.values)
+        except ValueError as e:
+            logger.warning(f"Vectorization failed in occupation similarity: {str(e)}", show_ui=False)
+            return {
+                'top_similar_occupations': [],
+                'total_similar_pairs': 0
+            }
         
         # Compute similarity
         similarity_matrix = cosine_similarity(tfidf_matrix)
