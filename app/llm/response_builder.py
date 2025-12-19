@@ -54,6 +54,11 @@ class ResponseBuilder:
             
             answer = response.choices[0].message.content
             
+            # Handle case where content is None
+            if answer is None:
+                logger.warning("OpenAI returned None content", show_ui=False)
+                return "I apologize, but I wasn't able to generate a response. Please try again."
+            
             logger.debug(f"Generated response: {len(answer)} characters")
             
             return answer
@@ -215,7 +220,7 @@ class QueryProcessor:
             'metadata': {
                 'semantic_results_count': len(retrieval_results.get('semantic_results', [])),
                 'computational_results': retrieval_results.get('computational_results', {}),
-                'filtered_rows': len(retrieval_results.get('filtered_dataframe', []))
+                'filtered_rows': len(retrieval_results.get('filtered_dataframe', [])) if retrieval_results.get('filtered_dataframe') is not None else 0
             },
             'csv_data': csv_data,
             'retrieval_results': retrieval_results  # For debugging

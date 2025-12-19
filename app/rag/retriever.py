@@ -55,8 +55,9 @@ class HybridRetriever:
                 k=strategy.get('k_results', k),
                 filters=strategy.get('filters', {})
             )
-            results['semantic_results'] = semantic_results
-            logger.debug(f"Retrieved {len(semantic_results)} semantic results")
+            # Ensure we have a list, not None
+            results['semantic_results'] = semantic_results if semantic_results is not None else []
+            logger.debug(f"Retrieved {len(results['semantic_results'])} semantic results")
         
         # Execute computational queries if needed
         if strategy['use_aggregations'] or strategy['use_pandas']:
@@ -65,14 +66,18 @@ class HybridRetriever:
                 routing_info['params'],
                 semantic_results=results['semantic_results']
             )
-            results['computational_results'] = computational_results
-            logger.debug(f"Computed {len(computational_results)} aggregations")
+            # Ensure we have a dict, not None
+            results['computational_results'] = computational_results if computational_results is not None else {}
+            logger.debug(f"Computed {len(results['computational_results'])} aggregations")
         
         # Filter dataframe based on semantic results if needed
         if results['semantic_results'] and strategy['use_pandas']:
             filtered_df = self._filter_dataframe_by_results(results['semantic_results'])
             results['filtered_dataframe'] = filtered_df
-            results['metadata']['filtered_rows'] = len(filtered_df)
+            if filtered_df is not None and not filtered_df.empty:
+                results['metadata']['filtered_rows'] = len(filtered_df)
+            else:
+                results['metadata']['filtered_rows'] = 0
         
         results['metadata']['total_results'] = (
             len(results['semantic_results']) +
@@ -109,6 +114,11 @@ class HybridRetriever:
         """Perform computational/analytical queries"""
         
         computational_results = {}
+        
+        # Check if dataframe exists
+        if self.df is None:
+            logger.warning("Dataframe is None in computational retrieval", show_ui=False)
+            return {}
         
         # Determine which dataframe to use
         if semantic_results:
@@ -199,6 +209,11 @@ class HybridRetriever:
         """Compute percentages"""
         percentages = {}
         
+        # Check if self.df is None
+        if self.df is None:
+            logger.warning("Dataframe is None in percentage computation", show_ui=False)
+            return {}
+        
         total_rows = len(self.df)  # Use full dataset for percentage
         filtered_rows = len(df)
         
@@ -259,6 +274,11 @@ class HybridRetriever:
         semantic_results: List[Dict[str, Any]]
     ) -> pd.DataFrame:
         """Filter dataframe to only rows in semantic results"""
+        
+        # Check if dataframe exists
+        if self.df is None:
+            logger.warning("Dataframe is None, returning empty DataFrame", show_ui=False)
+            return pd.DataFrame()
         
         row_indices = [
             r['metadata'].get('row_index')
