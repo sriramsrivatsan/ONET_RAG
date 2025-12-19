@@ -1,6 +1,9 @@
 # Use Python 3.10 slim image
 FROM python:3.10-slim
 
+RUN useradd -m -u 1000 user
+USER user
+
 # Set working directory
 WORKDIR /app
 
@@ -28,7 +31,7 @@ RUN python -c "import nltk; \
 COPY . .
 
 # Create data directory for ChromaDB persistence
-RUN mkdir -p /data/chroma_db && chmod -R 777 /data
+RUN mkdir -p /data/chroma_db && chown -R user:user /data/chroma_db
 
 # Create .streamlit directory for config
 RUN mkdir -p /root/.streamlit
@@ -59,6 +62,11 @@ ENV STREAMLIT_SERVER_PORT=8501
 ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
 ENV STREAMLIT_SERVER_HEADLESS=true
 ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+
+# Set environment variables for persistent mode
+ENV PERSISTENT_MODE=true
+ENV CHROMA_PERSIST_DIR=/data/chroma_db
+ENV CHROMA_COLLECTION_NAME=labor_market_collection
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
