@@ -63,6 +63,74 @@ class VectorStore:
             logger.error(f"Failed to initialize vector store: {str(e)}", show_ui=True)
             raise
     
+    def check_existing_index(self) -> Dict[str, Any]:
+        """
+        Check if an existing index exists and return its status
+        Returns: dict with 'exists', 'document_count', 'collection_name'
+        """
+        try:
+            if not self.is_initialized:
+                self.initialize()
+            
+            # List all collections
+            collections = self.client.list_collections()
+            collection_names = [col.name for col in collections]
+            
+            if config.CHROMA_COLLECTION_NAME in collection_names:
+                # Get the collection
+                temp_collection = self.client.get_collection(name=config.CHROMA_COLLECTION_NAME)
+                doc_count = temp_collection.count()
+                
+                return {
+                    'exists': True,
+                    'document_count': doc_count,
+                    'collection_name': config.CHROMA_COLLECTION_NAME,
+                    'has_data': doc_count > 0
+                }
+            else:
+                return {
+                    'exists': False,
+                    'document_count': 0,
+                    'collection_name': config.CHROMA_COLLECTION_NAME,
+                    'has_data': False
+                }
+                
+        except Exception as e:
+            logger.error(f"Error checking existing index: {str(e)}", show_ui=False)
+            return {
+                'exists': False,
+                'document_count': 0,
+                'collection_name': config.CHROMA_COLLECTION_NAME,
+                'has_data': False,
+                'error': str(e)
+            }
+    
+    def load_existing_index(self) -> bool:
+        """
+        Load an existing persisted index if available
+        Returns: True if loaded successfully, False otherwise
+        """
+        try:
+            if not self.is_initialized:
+                self.initialize()
+            
+            index_status = self.check_existing_index()
+            
+            if index_status['exists'] and index_status['has_data']:
+                # Get the existing collection
+                self.collection = self.client.get_collection(name=config.CHROMA_COLLECTION_NAME)
+                self.document_count = self.collection.count()
+                
+                logger.info(f"✓ Loaded existing index: {self.document_count} documents", show_ui=True)
+                return True
+            else:
+                logger.info("No existing index found", show_ui=False)
+                return False
+                
+        except Exception as e:
+            logger.error(f"Failed to load existing index: {str(e)}", show_ui=True)
+            return False
+    
     def create_or_get_collection(self, reset: bool = False) -> bool:
         """Create or get the collection"""
         try:

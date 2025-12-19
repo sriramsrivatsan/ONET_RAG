@@ -46,6 +46,56 @@ def initialize_session_state():
     
     if 'query_history' not in st.session_state:
         st.session_state.query_history = []
+    
+    if 'system_logs' not in st.session_state:
+        st.session_state.system_logs = []
+    
+    if 'index_check_done' not in st.session_state:
+        st.session_state.index_check_done = False
+
+
+def check_persisted_index():
+    """Check for and load any persisted ChromaDB index on startup"""
+    
+    # Only check once per session
+    if st.session_state.get('index_check_done', False):
+        return
+    
+    # Only check if persistence is enabled
+    if not config.ENABLE_PERSISTENCE:
+        st.session_state.index_check_done = True
+        return
+    
+    try:
+        from app.rag.vector_store import VectorStore
+        
+        # Initialize vector store if not already done
+        if st.session_state.vector_store is None:
+            vector_store = VectorStore()
+            st.session_state.vector_store = vector_store
+        else:
+            vector_store = st.session_state.vector_store
+        
+        # Check for existing index
+        index_status = vector_store.check_existing_index()
+        
+        if index_status.get('has_data', False):
+            # Load the existing index
+            success = vector_store.load_existing_index()
+            
+            if success:
+                st.session_state.vector_store_initialized = True
+                st.session_state.document_count = index_status['document_count']
+                logger.info(
+                    f"✓ Restored persisted index: {index_status['document_count']} documents",
+                    show_ui=False
+                )
+        
+        st.session_state.index_check_done = True
+        
+    except Exception as e:
+        logger.error(f"Error checking persisted index: {str(e)}", show_ui=False)
+        st.session_state.index_check_done = True
 
 
 def render_sidebar():
@@ -136,6 +186,9 @@ def main():
     
     # Initialize session state
     initialize_session_state()
+    
+    # Check for persisted index on startup
+    check_persisted_index()
     
     # Render sidebar
     render_sidebar()

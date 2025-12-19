@@ -109,6 +109,21 @@ class AdminView:
         if uploaded_file is not None:
             st.info(f"📄 File: {uploaded_file.name} ({uploaded_file.size / 1024 / 1024:.2f} MB)")
             
+            # Check for existing index and warn user
+            if rebuild_index:
+                vector_store = st.session_state.get('vector_store')
+                if vector_store is not None:
+                    try:
+                        index_status = vector_store.check_existing_index()
+                        if index_status.get('has_data', False):
+                            st.warning(
+                                f"⚠️ **Warning:** An existing index with "
+                                f"**{index_status['document_count']:,} documents** will be overwritten.\n\n"
+                                f"Uncheck 'Rebuild Index' to add to the existing index instead."
+                            )
+                    except:
+                        pass
+            
             if st.button("🚀 Start Ingestion Pipeline", type="primary"):
                 self._run_ingestion_pipeline(uploaded_file, rebuild_index)
         
@@ -216,6 +231,9 @@ class AdminView:
                 with col3:
                     st.metric("Indexed Documents", vector_store.document_count)
                     st.metric("Cluster Groups", len(cluster_results))
+            
+            # Force UI refresh to update sidebar
+            st.rerun()
             
         except Exception as e:
             logger.error(f"Ingestion pipeline failed: {str(e)}", show_ui=True)
