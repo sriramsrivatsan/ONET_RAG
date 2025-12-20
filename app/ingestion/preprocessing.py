@@ -1,5 +1,6 @@
 """
 Data preprocessing and text normalization for Labor Market data
+Enhanced with data dictionary support
 """
 import pandas as pd
 import numpy as np
@@ -8,14 +9,28 @@ from typing import List, Dict, Any, Optional
 import streamlit as st
 
 from app.utils.logging import logger
+from app.ingestion.dictionary_enrichment import LaborMarketDictionary, DataEnricher
 
 
 class DataPreprocessor:
-    """Handles data preprocessing and text normalization"""
+    """Handles data preprocessing, text normalization, and dictionary-based enrichment"""
     
-    def __init__(self):
+    def __init__(self, use_dictionary: bool = True):
         self.stopwords = self._get_stopwords()
         self.domain_terms = self._get_domain_terms()
+        self.use_dictionary = use_dictionary
+        self.dictionary = None
+        self.enricher = None
+        
+        # Load data dictionary if enabled
+        if self.use_dictionary:
+            try:
+                self.dictionary = LaborMarketDictionary()
+                self.enricher = DataEnricher(self.dictionary)
+                logger.info("✓ Data dictionary loaded and ready", show_ui=True)
+            except Exception as e:
+                logger.warning(f"Could not load data dictionary: {str(e)}", show_ui=True)
+                self.use_dictionary = False
     
     def _get_stopwords(self) -> set:
         """Get stopwords list (fallback if NLTK unavailable)"""
@@ -44,7 +59,7 @@ class DataPreprocessor:
         }
     
     def preprocess_dataset(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Main preprocessing pipeline"""
+        """Main preprocessing pipeline with dictionary-based enrichment"""
         logger.info("Starting data preprocessing", show_ui=True)
         
         df_processed = df.copy()
@@ -55,13 +70,36 @@ class DataPreprocessor:
         # 2. Normalize text fields
         df_processed = self._normalize_text_fields(df_processed)
         
-        # 3. Create combined search text
+        # 3. ENHANCED: Apply data dictionary enrichment
+        if self.use_dictionary and self.enricher:
+            logger.info("Applying data dictionary enrichment", show_ui=True)
+            try:
+                df_processed = self.enricher.enrich_dataframe(df_processed)
+                
+                # Get enrichment summary
+                summary = self.enricher.get_enrichment_summary(df_processed)
+                logger.info(f"✓ Enrichment complete: {summary}", show_ui=False)
+                
+                # Show key stats to user
+                if 'industry_canonicalization' in summary:
+                    perfect = summary['industry_canonicalization']['perfect_matches']
+                    logger.info(f"  - Matched {perfect} industries to canonical terms", show_ui=True)
+                
+                if 'skill_extraction' in summary:
+                    skills = summary['skill_extraction']['total_skills_extracted']
+                    logger.info(f"  - Extracted {skills} skill references from tasks", show_ui=True)
+                
+            except Exception as e:
+                logger.warning(f"Dictionary enrichment failed: {str(e)}", show_ui=True)
+        
+        # 4. Create combined search text (now includes enriched fields)
         df_processed = self._create_combined_text(df_processed)
         
-        # 4. Handle missing values
+        # 5. Handle missing values
         df_processed = self._handle_missing_values(df_processed)
         
-        logger.info(f"✓ Preprocessing complete: {len(df_processed):,} rows", show_ui=True)
+        logger.info(f"✓ Preprocessing complete: {len(df_processed):,} rows, {len(df_processed.columns)} columns", 
+                   show_ui=True)
         
         return df_processed
     
@@ -128,7 +166,7 @@ class DataPreprocessor:
         return text
     
     def _create_combined_text(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Create combined searchable text field"""
+        """Create combined searchable text field with enriched data"""
         text_fields = []
         
         # Priority fields for search
@@ -140,9 +178,36 @@ class DataPreprocessor:
             'Detailed job tasks'
         ]
         
+        # Add enriched fields if available (from data dictionary)
+        enriched_fields = [
+            'Industry_Canonical',  # Canonical industry name
+            'Occupation_Major_Group',  # Occupation category
+            'Canonical_Activities',  # Canonical work activities
+            'Wage_Band',  # Wage classification
+            'Task_Importance_Level'  # Task importance category
+        ]
+        
+        # Collect all fields
         for field in priority_fields:
             if field in df.columns:
                 text_fields.append(df[field].fillna(''))
+        
+        # Add enriched fields if they exist
+        for field in enriched_fields:
+            if field in df.columns:
+                # Handle list fields (like Canonical_Activities)
+                if df[field].dtype == 'object' and isinstance(df[field].iloc[0], list):
+                    text_fields.append(df[field].apply(lambda x: ' '.join(x) if isinstance(x, list) else str(x)))
+                else:
+                    text_fields.append(df[field].fillna('').astype(str))
+        
+        # Add extracted skills if available
+        if 'Extracted_Skills' in df.columns:
+            text_fields.append(
+                df['Extracted_Skills'].apply(
+                    lambda skills: ' '.join([s['skill'] for s in skills]) if isinstance(skills, list) else ''
+                )
+            )
         
         # Combine with spaces
         df['combined_text'] = text_fields[0] if text_fields else ''
@@ -151,6 +216,8 @@ class DataPreprocessor:
         
         # Normalize combined text
         df['combined_text_normalized'] = df['combined_text'].apply(self._normalize_text)
+        
+        logger.debug(f"Created combined text with {len(text_fields)} field types")
         
         return df
     

@@ -1,0 +1,861 @@
+# Labor Market Data Dictionary
+# Comprehensive lexicon for labor market analysis with canonical terms, taxonomies, and mappings
+# Version: 1.0.0
+# Date: 2024-12-19
+
+metadata:
+  version: "1.0.0"
+  last_updated: "2024-12-19"
+  description: "Comprehensive data dictionary for labor market analysis and RAG enhancement"
+  domain: "Labor Market Intelligence"
+  
+# ============================================================================
+# INDUSTRY CLASSIFICATIONS
+# ============================================================================
+industries:
+  # NAICS-based industry hierarchy with canonical terms and synonyms
+  
+  sectors:
+    - canonical: "Agriculture, Forestry, Fishing and Hunting"
+      naics_code: "11"
+      synonyms: ["Agriculture", "Farming", "Forestry", "Ag Sector"]
+      subsectors: ["Crop Production", "Animal Production", "Forestry and Logging"]
+      keywords: ["farm", "crop", "livestock", "timber", "agricultural"]
+      
+    - canonical: "Mining, Quarrying, and Oil and Gas Extraction"
+      naics_code: "21"
+      synonyms: ["Mining", "Extraction", "Energy Extraction"]
+      subsectors: ["Oil and Gas Extraction", "Mining", "Support Activities"]
+      keywords: ["mining", "oil", "gas", "extraction", "quarry"]
+      
+    - canonical: "Utilities"
+      naics_code: "22"
+      synonyms: ["Utility Services", "Power Generation"]
+      subsectors: ["Electric Power", "Natural Gas", "Water and Sewage"]
+      keywords: ["electricity", "power", "water", "utility", "energy"]
+      
+    - canonical: "Construction"
+      naics_code: "23"
+      synonyms: ["Building", "Construction Services"]
+      subsectors: ["Building Construction", "Heavy Construction", "Specialty Trade"]
+      keywords: ["construction", "building", "contractor", "infrastructure"]
+      
+    - canonical: "Manufacturing"
+      naics_code: "31-33"
+      synonyms: ["Production", "Industrial Manufacturing"]
+      subsectors: ["Durable Goods", "Nondurable Goods", "Advanced Manufacturing"]
+      keywords: ["manufacturing", "production", "factory", "assembly", "industrial"]
+      
+    - canonical: "Wholesale Trade"
+      naics_code: "42"
+      synonyms: ["Wholesale", "Distribution"]
+      subsectors: ["Durable Goods Wholesale", "Nondurable Goods Wholesale"]
+      keywords: ["wholesale", "distribution", "b2b", "supply"]
+      
+    - canonical: "Retail Trade"
+      naics_code: "44-45"
+      synonyms: ["Retail", "Consumer Sales"]
+      subsectors: ["Motor Vehicle Dealers", "Food and Beverage", "General Merchandise"]
+      keywords: ["retail", "store", "shop", "consumer", "sales"]
+      
+    - canonical: "Transportation and Warehousing"
+      naics_code: "48-49"
+      synonyms: ["Transportation", "Logistics", "Shipping"]
+      subsectors: ["Air Transportation", "Truck Transportation", "Warehousing"]
+      keywords: ["transport", "logistics", "shipping", "delivery", "warehouse"]
+      
+    - canonical: "Information"
+      naics_code: "51"
+      synonyms: ["Media", "Communications", "Information Services"]
+      subsectors: ["Publishing", "Broadcasting", "Telecommunications", "Data Processing"]
+      keywords: ["media", "telecom", "publishing", "data", "information"]
+      
+    - canonical: "Finance and Insurance"
+      naics_code: "52"
+      synonyms: ["Financial Services", "Banking"]
+      subsectors: ["Banking", "Insurance", "Securities", "Investment"]
+      keywords: ["finance", "banking", "insurance", "investment", "financial"]
+      
+    - canonical: "Real Estate and Rental and Leasing"
+      naics_code: "53"
+      synonyms: ["Real Estate", "Property Management"]
+      subsectors: ["Real Estate", "Rental and Leasing Services"]
+      keywords: ["real estate", "property", "rental", "leasing"]
+      
+    - canonical: "Professional, Scientific, and Technical Services"
+      naics_code: "54"
+      synonyms: ["Professional Services", "Consulting", "Technical Services"]
+      subsectors: ["Legal Services", "Accounting", "Engineering", "Computer Systems Design"]
+      keywords: ["professional", "consulting", "technical", "scientific", "expert"]
+      
+    - canonical: "Management of Companies and Enterprises"
+      naics_code: "55"
+      synonyms: ["Corporate Management", "Holding Companies"]
+      subsectors: ["Management of Companies"]
+      keywords: ["management", "corporate", "headquarters", "holding"]
+      
+    - canonical: "Administrative and Support Services"
+      naics_code: "56"
+      synonyms: ["Administrative Services", "Business Support"]
+      subsectors: ["Administrative Services", "Waste Management"]
+      keywords: ["administrative", "support", "services", "facilities"]
+      
+    - canonical: "Educational Services"
+      naics_code: "61"
+      synonyms: ["Education", "Schools", "Training"]
+      subsectors: ["Elementary and Secondary Schools", "Colleges and Universities", "Training"]
+      keywords: ["education", "school", "university", "training", "learning"]
+      
+    - canonical: "Health Care and Social Assistance"
+      naics_code: "62"
+      synonyms: ["Healthcare", "Medical Services", "Social Services"]
+      subsectors: ["Hospitals", "Nursing Care", "Social Assistance"]
+      keywords: ["healthcare", "medical", "hospital", "health", "social services"]
+      
+    - canonical: "Arts, Entertainment, and Recreation"
+      naics_code: "71"
+      synonyms: ["Entertainment", "Recreation", "Arts"]
+      subsectors: ["Performing Arts", "Museums", "Amusement and Recreation"]
+      keywords: ["arts", "entertainment", "recreation", "culture", "leisure"]
+      
+    - canonical: "Accommodation and Food Services"
+      naics_code: "72"
+      synonyms: ["Hospitality", "Food Service", "Hotels"]
+      subsectors: ["Accommodation", "Food Services and Drinking Places"]
+      keywords: ["hotel", "restaurant", "hospitality", "food service", "lodging"]
+      
+    - canonical: "Other Services"
+      naics_code: "81"
+      synonyms: ["Miscellaneous Services", "Personal Services"]
+      subsectors: ["Repair and Maintenance", "Personal Services", "Religious Organizations"]
+      keywords: ["repair", "maintenance", "personal services", "other"]
+      
+    - canonical: "Public Administration"
+      naics_code: "92"
+      synonyms: ["Government", "Public Sector"]
+      subsectors: ["Federal Government", "State Government", "Local Government"]
+      keywords: ["government", "public", "administration", "federal", "state"]
+
+# ============================================================================
+# OCCUPATION HIERARCHIES (SOC-based)
+# ============================================================================
+occupations:
+  # Major occupation groups with canonical terms
+  
+  major_groups:
+    - code: "11-0000"
+      canonical: "Management Occupations"
+      synonyms: ["Managers", "Management", "Executives"]
+      subcategories:
+        - "Top Executives"
+        - "Advertising, Marketing, Promotions, Public Relations, and Sales Managers"
+        - "Operations Specialties Managers"
+        - "Other Management Occupations"
+      skill_profile: ["leadership", "strategic thinking", "decision making", "communication"]
+      education_level: "Bachelor's degree or higher"
+      
+    - code: "13-0000"
+      canonical: "Business and Financial Operations Occupations"
+      synonyms: ["Business Operations", "Financial Analysts", "Business Professionals"]
+      subcategories:
+        - "Business Operations Specialists"
+        - "Financial Specialists"
+      skill_profile: ["analytical thinking", "financial analysis", "business acumen", "data analysis"]
+      education_level: "Bachelor's degree"
+      
+    - code: "15-0000"
+      canonical: "Computer and Mathematical Occupations"
+      synonyms: ["IT Professionals", "Software Developers", "Data Scientists", "Tech Workers"]
+      subcategories:
+        - "Computer Occupations"
+        - "Mathematical Science Occupations"
+      skill_profile: ["programming", "problem solving", "analytical thinking", "technical skills"]
+      education_level: "Bachelor's degree"
+      
+    - code: "17-0000"
+      canonical: "Architecture and Engineering Occupations"
+      synonyms: ["Engineers", "Architects", "Engineering Professionals"]
+      subcategories:
+        - "Architects, Surveyors, and Cartographers"
+        - "Engineers"
+        - "Drafters, Engineering Technicians, and Mapping Technicians"
+      skill_profile: ["technical design", "problem solving", "mathematics", "critical thinking"]
+      education_level: "Bachelor's degree or higher"
+      
+    - code: "19-0000"
+      canonical: "Life, Physical, and Social Science Occupations"
+      synonyms: ["Scientists", "Researchers", "Scientific Professionals"]
+      subcategories:
+        - "Life Scientists"
+        - "Physical Scientists"
+        - "Social Scientists and Related Workers"
+      skill_profile: ["research", "analytical thinking", "scientific method", "data analysis"]
+      education_level: "Master's degree or higher"
+      
+    - code: "21-0000"
+      canonical: "Community and Social Service Occupations"
+      synonyms: ["Social Workers", "Counselors", "Community Service Workers"]
+      subcategories:
+        - "Counselors, Social Workers, and Other Community and Social Service Specialists"
+        - "Religious Workers"
+      skill_profile: ["empathy", "communication", "counseling", "interpersonal skills"]
+      education_level: "Bachelor's degree"
+      
+    - code: "23-0000"
+      canonical: "Legal Occupations"
+      synonyms: ["Lawyers", "Legal Professionals", "Paralegals"]
+      subcategories:
+        - "Lawyers, Judges, and Related Workers"
+        - "Legal Support Workers"
+      skill_profile: ["legal knowledge", "analytical thinking", "communication", "research"]
+      education_level: "Professional degree"
+      
+    - code: "25-0000"
+      canonical: "Educational Instruction and Library Occupations"
+      synonyms: ["Teachers", "Educators", "Librarians"]
+      subcategories:
+        - "Postsecondary Teachers"
+        - "Primary, Secondary, and Special Education School Teachers"
+        - "Other Teachers and Instructors"
+        - "Librarians, Curators, and Archivists"
+      skill_profile: ["teaching", "communication", "subject expertise", "patience"]
+      education_level: "Bachelor's degree or higher"
+      
+    - code: "27-0000"
+      canonical: "Arts, Design, Entertainment, Sports, and Media Occupations"
+      synonyms: ["Creative Professionals", "Media Workers", "Artists"]
+      subcategories:
+        - "Art and Design Workers"
+        - "Entertainers and Performers, Sports and Related Workers"
+        - "Media and Communication Workers"
+      skill_profile: ["creativity", "artistic ability", "communication", "technical skills"]
+      education_level: "Varies"
+      
+    - code: "29-0000"
+      canonical: "Healthcare Practitioners and Technical Occupations"
+      synonyms: ["Healthcare Professionals", "Medical Practitioners", "Health Workers"]
+      subcategories:
+        - "Health Diagnosing and Treating Practitioners"
+        - "Health Technologists and Technicians"
+      skill_profile: ["medical knowledge", "patient care", "technical skills", "empathy"]
+      education_level: "Associate's degree or higher"
+      
+    - code: "31-0000"
+      canonical: "Healthcare Support Occupations"
+      synonyms: ["Healthcare Aides", "Medical Assistants", "Healthcare Support"]
+      subcategories:
+        - "Nursing, Psychiatric, and Home Health Aides"
+        - "Occupational Therapy and Physical Therapist Assistants and Aides"
+        - "Other Healthcare Support Occupations"
+      skill_profile: ["patient care", "empathy", "attention to detail", "physical stamina"]
+      education_level: "High school diploma or equivalent"
+      
+    - code: "33-0000"
+      canonical: "Protective Service Occupations"
+      synonyms: ["Police", "Firefighters", "Security", "Emergency Services"]
+      subcategories:
+        - "Supervisors of Protective Service Workers"
+        - "Fire Fighting and Prevention Workers"
+        - "Law Enforcement Workers"
+        - "Other Protective Service Workers"
+      skill_profile: ["physical fitness", "decision making", "communication", "crisis management"]
+      education_level: "High school diploma or equivalent"
+      
+    - code: "35-0000"
+      canonical: "Food Preparation and Serving Related Occupations"
+      synonyms: ["Food Service Workers", "Cooks", "Servers"]
+      subcategories:
+        - "Supervisors of Food Preparation and Serving Workers"
+        - "Cooks and Food Preparation Workers"
+        - "Food and Beverage Serving Workers"
+      skill_profile: ["customer service", "food safety", "multitasking", "physical stamina"]
+      education_level: "No formal education requirement"
+      
+    - code: "37-0000"
+      canonical: "Building and Grounds Cleaning and Maintenance Occupations"
+      synonyms: ["Janitors", "Maintenance Workers", "Groundskeepers"]
+      subcategories:
+        - "Supervisors of Building and Grounds Cleaning and Maintenance Workers"
+        - "Building Cleaning and Pest Control Workers"
+        - "Grounds Maintenance Workers"
+      skill_profile: ["physical stamina", "attention to detail", "maintenance skills"]
+      education_level: "No formal education requirement"
+      
+    - code: "39-0000"
+      canonical: "Personal Care and Service Occupations"
+      synonyms: ["Personal Care Workers", "Service Workers"]
+      subcategories:
+        - "Supervisors of Personal Care and Service Workers"
+        - "Animal Care and Service Workers"
+        - "Entertainment Attendants and Related Workers"
+        - "Funeral Service Workers"
+        - "Personal Appearance Workers"
+        - "Baggage Porters, Bellhops, and Concierges"
+        - "Tour and Travel Guides"
+        - "Other Personal Care and Service Workers"
+      skill_profile: ["customer service", "interpersonal skills", "attention to detail"]
+      education_level: "High school diploma or equivalent"
+      
+    - code: "41-0000"
+      canonical: "Sales and Related Occupations"
+      synonyms: ["Sales Representatives", "Sales Workers", "Retail Sales"]
+      subcategories:
+        - "Supervisors of Sales Workers"
+        - "Retail Sales Workers"
+        - "Sales Representatives, Services"
+        - "Sales Representatives, Wholesale and Manufacturing"
+        - "Other Sales and Related Workers"
+      skill_profile: ["customer service", "persuasion", "communication", "product knowledge"]
+      education_level: "High school diploma or equivalent"
+      
+    - code: "43-0000"
+      canonical: "Office and Administrative Support Occupations"
+      synonyms: ["Administrative Assistants", "Office Workers", "Clerical Workers"]
+      subcategories:
+        - "Supervisors of Office and Administrative Support Workers"
+        - "Communications Equipment Operators"
+        - "Financial Clerks"
+        - "Information and Record Clerks"
+        - "Material Recording, Scheduling, Dispatching, and Distributing Workers"
+        - "Secretaries and Administrative Assistants"
+        - "Other Office and Administrative Support Workers"
+      skill_profile: ["organization", "computer skills", "communication", "attention to detail"]
+      education_level: "High school diploma or equivalent"
+      
+    - code: "45-0000"
+      canonical: "Farming, Fishing, and Forestry Occupations"
+      synonyms: ["Agricultural Workers", "Farm Workers", "Foresters"]
+      subcategories:
+        - "Supervisors of Farming, Fishing, and Forestry Workers"
+        - "Agricultural Workers"
+        - "Fishing and Hunting Workers"
+        - "Forest, Conservation, and Logging Workers"
+      skill_profile: ["physical stamina", "equipment operation", "outdoor work"]
+      education_level: "No formal education requirement"
+      
+    - code: "47-0000"
+      canonical: "Construction and Extraction Occupations"
+      synonyms: ["Construction Workers", "Tradespeople", "Skilled Trades"]
+      subcategories:
+        - "Supervisors of Construction and Extraction Workers"
+        - "Construction Trades Workers"
+        - "Helpers, Construction Trades"
+        - "Other Construction and Related Workers"
+        - "Extraction Workers"
+      skill_profile: ["manual dexterity", "physical stamina", "technical skills", "safety awareness"]
+      education_level: "High school diploma or equivalent"
+      
+    - code: "49-0000"
+      canonical: "Installation, Maintenance, and Repair Occupations"
+      synonyms: ["Mechanics", "Technicians", "Repair Workers"]
+      subcategories:
+        - "Supervisors of Installation, Maintenance, and Repair Workers"
+        - "Electrical and Electronic Equipment Mechanics, Installers, and Repairers"
+        - "Vehicle and Mobile Equipment Mechanics, Installers, and Repairers"
+        - "Other Installation, Maintenance, and Repair Occupations"
+      skill_profile: ["technical skills", "troubleshooting", "manual dexterity", "problem solving"]
+      education_level: "High school diploma or equivalent"
+      
+    - code: "51-0000"
+      canonical: "Production Occupations"
+      synonyms: ["Manufacturing Workers", "Production Workers", "Assembly Workers"]
+      subcategories:
+        - "Supervisors of Production Workers"
+        - "Assemblers and Fabricators"
+        - "Food Processing Workers"
+        - "Metal Workers and Plastic Workers"
+        - "Printing Workers"
+        - "Textile, Apparel, and Furnishings Workers"
+        - "Woodworkers"
+        - "Plant and System Operators"
+        - "Other Production Occupations"
+      skill_profile: ["manual dexterity", "attention to detail", "quality control", "equipment operation"]
+      education_level: "High school diploma or equivalent"
+      
+    - code: "53-0000"
+      canonical: "Transportation and Material Moving Occupations"
+      synonyms: ["Drivers", "Transporters", "Material Handlers"]
+      subcategories:
+        - "Supervisors of Transportation and Material Moving Workers"
+        - "Air Transportation Workers"
+        - "Motor Vehicle Operators"
+        - "Rail Transportation Workers"
+        - "Water Transportation Workers"
+        - "Other Transportation Workers"
+        - "Material Moving Workers"
+      skill_profile: ["driving skills", "physical stamina", "safety awareness", "navigation"]
+      education_level: "High school diploma or equivalent"
+
+# ============================================================================
+# WORK ACTIVITIES TAXONOMY
+# ============================================================================
+work_activities:
+  # Standardized work activity categories with canonical verbs
+  
+  categories:
+    - category: "Information Processing"
+      canonical_verbs:
+        - analyze: ["analyze", "examine", "evaluate", "assess", "review", "study"]
+        - research: ["research", "investigate", "explore", "survey"]
+        - interpret: ["interpret", "understand", "comprehend", "decode"]
+        - monitor: ["monitor", "track", "observe", "watch", "oversee"]
+      examples:
+        - "Analyze market research data"
+        - "Monitor performance of organizational members"
+        - "Interpret technical documents"
+        
+    - category: "Communication"
+      canonical_verbs:
+        - communicate: ["communicate", "convey", "relay", "transmit"]
+        - present: ["present", "demonstrate", "show", "display"]
+        - negotiate: ["negotiate", "bargain", "discuss", "mediate"]
+        - advise: ["advise", "counsel", "consult", "recommend", "guide"]
+        - document: ["document", "record", "report", "write"]
+      examples:
+        - "Communicate with clients or customers"
+        - "Present information to groups"
+        - "Document work activities"
+        
+    - category: "Decision Making and Planning"
+      canonical_verbs:
+        - plan: ["plan", "schedule", "organize", "arrange"]
+        - decide: ["decide", "determine", "choose", "select"]
+        - develop: ["develop", "create", "design", "formulate", "build"]
+        - coordinate: ["coordinate", "orchestrate", "manage", "direct"]
+        - prioritize: ["prioritize", "rank", "order"]
+      examples:
+        - "Develop marketing plans or strategies"
+        - "Coordinate operational activities"
+        - "Plan project timelines"
+        
+    - category: "People Management"
+      canonical_verbs:
+        - supervise: ["supervise", "oversee", "manage", "lead"]
+        - train: ["train", "teach", "coach", "mentor", "instruct"]
+        - evaluate: ["evaluate", "assess", "appraise", "review"]
+        - motivate: ["motivate", "inspire", "encourage", "energize"]
+        - hire: ["hire", "recruit", "select", "employ"]
+      examples:
+        - "Supervise employees"
+        - "Train new staff members"
+        - "Evaluate employee performance"
+        
+    - category: "Technical Operations"
+      canonical_verbs:
+        - operate: ["operate", "run", "control", "handle"]
+        - maintain: ["maintain", "service", "upkeep", "preserve"]
+        - repair: ["repair", "fix", "mend", "troubleshoot"]
+        - install: ["install", "set up", "implement", "deploy"]
+        - configure: ["configure", "set up", "adjust", "tune"]
+      examples:
+        - "Operate specialized equipment"
+        - "Maintain mechanical systems"
+        - "Repair electronic devices"
+        
+    - category: "Resource Management"
+      canonical_verbs:
+        - budget: ["budget", "allocate", "distribute"]
+        - purchase: ["purchase", "buy", "procure", "acquire"]
+        - inventory: ["inventory", "stock", "manage supplies"]
+        - optimize: ["optimize", "streamline", "improve", "enhance"]
+      examples:
+        - "Prepare operational budgets"
+        - "Manage inventory levels"
+        - "Optimize resource allocation"
+        
+    - category: "Quality and Compliance"
+      canonical_verbs:
+        - inspect: ["inspect", "examine", "check", "review"]
+        - test: ["test", "verify", "validate", "confirm"]
+        - ensure_compliance: ["ensure compliance", "adhere to", "follow regulations"]
+        - audit: ["audit", "review", "assess compliance"]
+      examples:
+        - "Inspect products for quality"
+        - "Ensure compliance with regulations"
+        - "Test system functionality"
+        
+    - category: "Customer Service"
+      canonical_verbs:
+        - assist: ["assist", "help", "support", "aid"]
+        - resolve: ["resolve", "solve", "address", "fix"]
+        - respond: ["respond to", "answer", "reply to"]
+        - serve: ["serve", "wait on", "attend to"]
+      examples:
+        - "Assist customers with inquiries"
+        - "Resolve customer complaints"
+        - "Respond to customer needs"
+
+# ============================================================================
+# TASK-TO-SKILL MAPPINGS
+# ============================================================================
+task_skill_mappings:
+  # Comprehensive mapping of tasks to required skills
+  
+  cognitive_skills:
+    - skill: "Analytical Thinking"
+      canonical_terms: ["analytical thinking", "analysis", "critical thinking"]
+      related_tasks:
+        - "Analyze data"
+        - "Analyze market research"
+        - "Evaluate performance"
+        - "Assess effectiveness"
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+      
+    - skill: "Problem Solving"
+      canonical_terms: ["problem solving", "troubleshooting", "issue resolution"]
+      related_tasks:
+        - "Troubleshoot technical issues"
+        - "Resolve customer complaints"
+        - "Identify solutions"
+        - "Address problems"
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+      
+    - skill: "Decision Making"
+      canonical_terms: ["decision making", "judgment", "choice"]
+      related_tasks:
+        - "Make strategic decisions"
+        - "Choose best options"
+        - "Determine priorities"
+        - "Select approaches"
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+      
+    - skill: "Creative Thinking"
+      canonical_terms: ["creativity", "innovation", "creative thinking"]
+      related_tasks:
+        - "Develop new concepts"
+        - "Design creative solutions"
+        - "Generate ideas"
+        - "Create content"
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+      
+  interpersonal_skills:
+    - skill: "Communication"
+      canonical_terms: ["communication", "verbal communication", "written communication"]
+      related_tasks:
+        - "Communicate with stakeholders"
+        - "Present information"
+        - "Write reports"
+        - "Conduct meetings"
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+      
+    - skill: "Leadership"
+      canonical_terms: ["leadership", "team leadership", "management"]
+      related_tasks:
+        - "Lead teams"
+        - "Manage projects"
+        - "Supervise employees"
+        - "Direct operations"
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+      
+    - skill: "Collaboration"
+      canonical_terms: ["collaboration", "teamwork", "cooperation"]
+      related_tasks:
+        - "Work with team members"
+        - "Coordinate with partners"
+        - "Collaborate on projects"
+        - "Cooperate with colleagues"
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+      
+    - skill: "Customer Service"
+      canonical_terms: ["customer service", "client relations", "customer care"]
+      related_tasks:
+        - "Assist customers"
+        - "Address customer needs"
+        - "Handle inquiries"
+        - "Resolve complaints"
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+      
+  technical_skills:
+    - skill: "Data Analysis"
+      canonical_terms: ["data analysis", "statistical analysis", "data science"]
+      related_tasks:
+        - "Analyze datasets"
+        - "Perform statistical analysis"
+        - "Interpret data trends"
+        - "Create data visualizations"
+      tools: ["Excel", "SQL", "Python", "R", "Tableau", "Power BI"]
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+      
+    - skill: "Programming"
+      canonical_terms: ["programming", "coding", "software development"]
+      related_tasks:
+        - "Write code"
+        - "Develop software"
+        - "Debug programs"
+        - "Maintain applications"
+      tools: ["Python", "Java", "JavaScript", "C++", "SQL"]
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+      
+    - skill: "Digital Document Creation"
+      canonical_terms: ["document creation", "word processing", "documentation"]
+      related_tasks:
+        - "Create documents"
+        - "Prepare reports"
+        - "Write documentation"
+        - "Develop presentations"
+      tools: ["Microsoft Word", "Google Docs", "PowerPoint", "LaTeX"]
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+      
+    - skill: "Project Management"
+      canonical_terms: ["project management", "program management", "project coordination"]
+      related_tasks:
+        - "Manage projects"
+        - "Plan timelines"
+        - "Coordinate resources"
+        - "Track progress"
+      tools: ["MS Project", "Jira", "Asana", "Trello"]
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+      
+    - skill: "Financial Analysis"
+      canonical_terms: ["financial analysis", "budgeting", "financial planning"]
+      related_tasks:
+        - "Prepare budgets"
+        - "Analyze financial data"
+        - "Forecast revenue"
+        - "Manage expenses"
+      tools: ["Excel", "QuickBooks", "SAP", "Oracle Financials"]
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+
+# ============================================================================
+# SUPPLEMENTARY DATA
+# ============================================================================
+supplementary:
+  
+  # Skill categories and taxonomies
+  skill_categories:
+    - category: "Cognitive Skills"
+      skills:
+        - "Critical Thinking"
+        - "Analytical Thinking"
+        - "Problem Solving"
+        - "Decision Making"
+        - "Creative Thinking"
+        - "Learning Strategies"
+        
+    - category: "Interpersonal Skills"
+      skills:
+        - "Communication"
+        - "Leadership"
+        - "Teamwork"
+        - "Customer Service"
+        - "Negotiation"
+        - "Conflict Resolution"
+        
+    - category: "Technical Skills"
+      skills:
+        - "Programming"
+        - "Data Analysis"
+        - "Project Management"
+        - "Technical Writing"
+        - "Equipment Operation"
+        - "Quality Control"
+        
+    - category: "Digital Skills"
+      skills:
+        - "Digital Literacy"
+        - "Social Media"
+        - "Digital Marketing"
+        - "Data Visualization"
+        - "Cloud Computing"
+        - "Cybersecurity"
+        
+  # Education level mappings
+  education_levels:
+    - level: "No formal education"
+      code: "01"
+      typical_occupations: ["Laborers", "Farm Workers"]
+      
+    - level: "High school diploma or equivalent"
+      code: "02"
+      typical_occupations: ["Retail Salespersons", "Office Clerks", "Production Workers"]
+      
+    - level: "Some college, no degree"
+      code: "03"
+      typical_occupations: ["Technicians", "Support Specialists"]
+      
+    - level: "Associate's degree"
+      code: "04"
+      typical_occupations: ["Nursing", "Technical Support", "Paralegal"]
+      
+    - level: "Bachelor's degree"
+      code: "05"
+      typical_occupations: ["Engineers", "Business Analysts", "Teachers"]
+      
+    - level: "Master's degree"
+      code: "06"
+      typical_occupations: ["Data Scientists", "Counselors", "Advanced Specialists"]
+      
+    - level: "Doctoral or professional degree"
+      code: "07"
+      typical_occupations: ["Physicians", "Lawyers", "Scientists", "Professors"]
+      
+  # Wage bands for analysis
+  wage_bands:
+    - band: "Entry Level"
+      range: [10, 20]
+      description: "Entry-level positions, minimal experience required"
+      
+    - band: "Mid Level"
+      range: [20, 35]
+      description: "Experienced workers, specialized skills"
+      
+    - band: "Senior Level"
+      range: [35, 60]
+      description: "Senior professionals, advanced expertise"
+      
+    - band: "Executive Level"
+      range: [60, 200]
+      description: "Executives, top-tier professionals"
+      
+  # Task importance categories
+  task_importance:
+    - level: "Critical"
+      score_range: [4.5, 5.0]
+      description: "Essential to job performance"
+      
+    - level: "Very Important"
+      score_range: [4.0, 4.5]
+      description: "Highly significant to job success"
+      
+    - level: "Important"
+      score_range: [3.5, 4.0]
+      description: "Significant component of job"
+      
+    - level: "Moderately Important"
+      score_range: [3.0, 3.5]
+      description: "Relevant but not critical"
+      
+    - level: "Minor"
+      score_range: [1.0, 3.0]
+      description: "Peripheral to main job functions"
+      
+  # Automation risk indicators
+  automation_indicators:
+    - indicator: "Routine Manual Tasks"
+      keywords: ["repetitive", "assembly", "sorting", "loading", "data entry"]
+      risk_level: "High"
+      
+    - indicator: "Routine Cognitive Tasks"
+      keywords: ["calculating", "data processing", "record keeping", "scheduling"]
+      risk_level: "Medium-High"
+      
+    - indicator: "Non-routine Manual Tasks"
+      keywords: ["repair", "construct", "artistic", "craft"]
+      risk_level: "Medium"
+      
+    - indicator: "Non-routine Cognitive Tasks"
+      keywords: ["analyze", "design", "create", "strategize", "advise"]
+      risk_level: "Low"
+      
+    - indicator: "Social Intelligence Tasks"
+      keywords: ["counsel", "negotiate", "care for", "teach", "persuade"]
+      risk_level: "Very Low"
+
+# ============================================================================
+# QUERY ENHANCEMENT PATTERNS
+# ============================================================================
+query_patterns:
+  # Common query patterns and their enhancements
+  
+  employment_queries:
+    - pattern: "employment in {industry}"
+      enhancements:
+        - expand_industry: true
+        - include_subsectors: true
+        - aggregate_totals: true
+        
+    - pattern: "jobs that require {skill}"
+      enhancements:
+        - map_skill_to_tasks: true
+        - find_related_skills: true
+        - rank_by_importance: true
+        
+    - pattern: "occupations in {category}"
+      enhancements:
+        - use_soc_hierarchy: true
+        - include_subcategories: true
+        - group_by_education: true
+        
+  compensation_queries:
+    - pattern: "salary for {occupation}"
+      enhancements:
+        - compute_statistics: true
+        - segment_by_industry: true
+        - adjust_for_location: false
+        
+    - pattern: "highest paying {category}"
+      enhancements:
+        - rank_by_wage: true
+        - filter_by_employment: true
+        - show_percentiles: true
+        
+  skill_queries:
+    - pattern: "skills needed for {occupation}"
+      enhancements:
+        - extract_from_tasks: true
+        - categorize_by_type: true
+        - prioritize_by_importance: true
+        
+    - pattern: "occupations requiring {skill}"
+      enhancements:
+        - semantic_match: true
+        - include_related_skills: true
+        - rank_by_relevance: true
+        
+  task_queries:
+    - pattern: "tasks involving {activity}"
+      enhancements:
+        - use_activity_taxonomy: true
+        - find_canonical_verbs: true
+        - expand_synonyms: true
+        
+    - pattern: "time spent on {task}"
+      enhancements:
+        - aggregate_hours: true
+        - calculate_percentages: true
+        - segment_by_occupation: true
+
+# ============================================================================
+# DATA QUALITY RULES
+# ============================================================================
+data_quality:
+  
+  validation_rules:
+    - field: "Industry title"
+      rules:
+        - must_match_canonical: true
+        - allow_fuzzy_match: true
+        - fuzzy_threshold: 0.85
+        
+    - field: "ONET job title"
+      rules:
+        - validate_soc_code: true
+        - check_hierarchy: true
+        
+    - field: "Hourly wage"
+      rules:
+        - min_value: 7.25  # Federal minimum wage
+        - max_value: 500
+        - require_numeric: true
+        
+    - field: "Employment"
+      rules:
+        - min_value: 0
+        - require_numeric: true
+        
+    - field: "Task importance"
+      rules:
+        - min_value: 1.0
+        - max_value: 5.0
+        
+  normalization_rules:
+    - field: "Industry title"
+      normalize: "canonical_match"
+      
+    - field: "Detailed work activities"
+      normalize: "extract_canonical_verbs"
+      
+    - field: "Detailed job tasks"
+      normalize: "standardize_terminology"
+
+# End of Labor Market Data Dictionary

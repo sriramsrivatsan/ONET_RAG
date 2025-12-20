@@ -164,17 +164,28 @@ Respond with ONLY the enhanced label, nothing else."""
 
 
 class QueryProcessor:
-    """High-level query processor that coordinates all components"""
+    """High-level query processor that coordinates all components with dictionary enhancement"""
     
     def __init__(
         self,
         response_builder: ResponseBuilder,
         retriever,  # HybridRetriever
-        dataframe: pd.DataFrame
+        dataframe: pd.DataFrame,
+        dictionary=None  # LaborMarketDictionary (optional)
     ):
         self.response_builder = response_builder
         self.retriever = retriever
         self.dataframe = dataframe
+        self.dictionary = dictionary
+        
+        # Load dictionary if not provided
+        if self.dictionary is None:
+            try:
+                from app.ingestion.dictionary_enrichment import LaborMarketDictionary
+                self.dictionary = LaborMarketDictionary()
+                logger.info("✓ Query processor loaded data dictionary", show_ui=False)
+            except Exception as e:
+                logger.warning(f"Could not load data dictionary for queries: {str(e)}", show_ui=False)
     
     def process_query(
         self,
@@ -182,14 +193,43 @@ class QueryProcessor:
         k_results: int = 10
     ) -> Dict[str, Any]:
         """
-        Main query processing function
+        Main query processing function with dictionary-based query enhancement
         
         Returns:
             Complete response with answer and metadata
         """
         
-        # Step 1: Retrieve relevant data
-        retrieval_results = self.retriever.retrieve(query, k=k_results)
+        # Step 0: Enhance query with dictionary knowledge
+        enhanced_query = query
+        query_enhancements = {}
+        
+        if self.dictionary:
+            try:
+                query_enhancements = self.dictionary.enhance_query(query)
+                
+                # Add expanded terms to query context
+                if query_enhancements.get('expanded_terms'):
+                    expanded_terms = []
+                    for term in query_enhancements['expanded_terms']:
+                        if term['type'] == 'industry':
+                            expanded_terms.extend(term.get('synonyms', []))
+                        elif term['type'] == 'skill':
+                            expanded_terms.extend([t.lower() for t in term.get('related_tasks', [])])
+                    
+                    if expanded_terms:
+                        enhanced_query = query + " " + " ".join(expanded_terms[:5])  # Add top 5 expanded terms
+                        logger.debug(f"Enhanced query with {len(expanded_terms)} terms", show_ui=False)
+                
+            except Exception as e:
+                logger.warning(f"Query enhancement failed: {str(e)}", show_ui=False)
+        
+        # Step 1: Retrieve relevant data (use enhanced query)
+        retrieval_results = self.retriever.retrieve(enhanced_query, k=k_results)
+        
+        # Add original query to results
+        retrieval_results['original_query'] = query
+        retrieval_results['enhanced_query'] = enhanced_query
+        retrieval_results['query_enhancements'] = query_enhancements
         
         # Step 2: Get routing info
         routing_info = retrieval_results.get('routing_info', {})

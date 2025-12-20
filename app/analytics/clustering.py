@@ -1,6 +1,6 @@
 """
 Clustering module for Labor Market data
-Clusters tasks, roles, work activities, and occupations to reduce hallucinations
+Enhanced with data dictionary for canonical term clustering
 """
 import pandas as pd
 import numpy as np
@@ -15,12 +15,54 @@ from app.utils.config import config
 
 
 class LaborMarketClusterer:
-    """Handles clustering of labor market data"""
+    """Handles clustering of labor market data with dictionary-based enhancements"""
     
-    def __init__(self, df: pd.DataFrame):
+    def __init__(self, df: pd.DataFrame, use_enriched_fields: bool = True):
         self.df = df
         self.cluster_results: Dict[str, Any] = {}
         self.vectorizers: Dict[str, TfidfVectorizer] = {}
+        self.use_enriched_fields = use_enriched_fields
+        
+        # Check if enriched fields are available
+        self.has_enriched_fields = self._check_enriched_fields()
+        if self.has_enriched_fields:
+            logger.info("✓ Using enriched fields for improved clustering", show_ui=True)
+    
+    def _check_enriched_fields(self) -> bool:
+        """Check if data dictionary enriched fields are available"""
+        enriched_columns = [
+            'Industry_Canonical', 'Canonical_Activities', 
+            'Extracted_Skills', 'Occupation_Major_Group'
+        ]
+        return any(col in self.df.columns for col in enriched_columns)
+    
+    def _get_enriched_field_name(self, field_name: str) -> Optional[str]:
+        """
+        Map a field name to its enriched version if available
+        
+        Args:
+            field_name: Original field name
+            
+        Returns:
+            Enriched field name if available, None otherwise
+        """
+        if not self.use_enriched_fields or not self.has_enriched_fields:
+            return None
+        
+        # Mapping of original fields to enriched versions
+        field_mapping = {
+            'Detailed work activities': 'Canonical_Activities',
+            'Industry title': 'Industry_Canonical',
+            'ONET job title': 'Occupation_Major_Group'
+        }
+        
+        enriched = field_mapping.get(field_name)
+        
+        # Only return if the enriched field actually exists in dataframe
+        if enriched and enriched in self.df.columns:
+            return enriched
+        
+        return None
     
     def perform_all_clustering(self) -> Dict[str, Any]:
         """Perform all clustering operations"""
@@ -66,10 +108,27 @@ class LaborMarketClusterer:
         cluster_prefix: str,
         sample_size: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Cluster a text field using TF-IDF + K-Means"""
+        """Cluster a text field using TF-IDF + K-Means with dictionary enhancement"""
+        
+        # Check if we should use enriched field instead
+        enriched_field = self._get_enriched_field_name(field_name)
+        use_field = enriched_field if enriched_field else field_name
+        
+        if enriched_field:
+            logger.info(f"Using enriched field '{enriched_field}' for clustering", show_ui=False)
         
         # Get non-null values
-        texts = self.df[field_name].dropna().astype(str).tolist()
+        if use_field in self.df.columns:
+            # Handle different field types
+            if use_field == 'Canonical_Activities' and use_field in self.df.columns:
+                # This is a list field - join the canonical activities
+                texts = self.df[use_field].dropna().apply(
+                    lambda x: ' '.join(x) if isinstance(x, list) else str(x)
+                ).tolist()
+            else:
+                texts = self.df[use_field].dropna().astype(str).tolist()
+        else:
+            texts = self.df[field_name].dropna().astype(str).tolist()
         
         if len(texts) == 0:
             return {'cluster_ids': [], 'cluster_labels': {}, 'centers': None}
