@@ -16,12 +16,39 @@ class LaborMarketDictionary:
     
     def __init__(self, dictionary_path: str = None):
         if dictionary_path is None:
-            # Default to data/labor_market_dictionary.yaml
-            dictionary_path = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)),
-                'data',
-                'labor_market_dictionary.yaml'
-            )
+            # Try multiple possible locations for the dictionary file
+            possible_paths = [
+                # Default: project_root/data/labor_market_dictionary.yaml
+                os.path.join(
+                    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                    'data',
+                    'labor_market_dictionary.yaml'
+                ),
+                # Fallback 1: relative to current working directory
+                os.path.join(os.getcwd(), 'data', 'labor_market_dictionary.yaml'),
+                # Fallback 2: relative to app directory
+                os.path.join(
+                    os.path.dirname(os.path.dirname(__file__)),
+                    'data',
+                    'labor_market_dictionary.yaml'
+                ),
+                # Fallback 3: in same directory as this file
+                os.path.join(
+                    os.path.dirname(__file__),
+                    'labor_market_dictionary.yaml'
+                )
+            ]
+            
+            # Find the first path that exists
+            dictionary_path = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    dictionary_path = path
+                    break
+            
+            # If none found, use the default (will error later with helpful message)
+            if dictionary_path is None:
+                dictionary_path = possible_paths[0]
         
         self.dictionary_path = dictionary_path
         self.dictionary = None
@@ -35,17 +62,26 @@ class LaborMarketDictionary:
     def load_dictionary(self) -> bool:
         """Load the YAML data dictionary"""
         try:
+            # Log the path we're trying to load from
+            abs_path = os.path.abspath(self.dictionary_path)
+            logger.debug(f"Loading dictionary from: {abs_path}", show_ui=False)
+            
             with open(self.dictionary_path, 'r', encoding='utf-8') as f:
                 self.dictionary = yaml.safe_load(f)
             
             # Build lookup indices
             self._build_indices()
             
-            logger.info(f"✓ Loaded labor market dictionary from {self.dictionary_path}", show_ui=True)
+            logger.info(f"✓ Loaded labor market dictionary", show_ui=True)
             return True
             
         except FileNotFoundError:
-            logger.error(f"Dictionary file not found: {self.dictionary_path}", show_ui=True)
+            abs_path = os.path.abspath(self.dictionary_path)
+            cwd = os.getcwd()
+            logger.error(f"Dictionary file not found!", show_ui=True)
+            logger.error(f"  Looking for: {abs_path}", show_ui=True)
+            logger.error(f"  Current dir: {cwd}", show_ui=True)
+            logger.error(f"  Please ensure data/labor_market_dictionary.yaml exists in project root", show_ui=True)
             return False
         except Exception as e:
             logger.error(f"Error loading dictionary: {str(e)}", show_ui=True)
