@@ -490,130 +490,275 @@ work_activities:
 # ============================================================================
 task_skill_mappings:
   # Comprehensive mapping of tasks to required skills
+  # Updated based on analysis of actual task data (data2.csv)
+  # Top verbs: prepare, develop, conduct, design, direct, plan, perform, analyze
   
   cognitive_skills:
     - skill: "Analytical Thinking"
-      canonical_terms: ["analytical thinking", "analysis", "critical thinking"]
+      canonical_terms: ["analytical", "analysis", "analyze", "critical thinking", "evaluate", "assess", "examine"]
       related_tasks:
         - "Analyze data"
         - "Analyze market research"
+        - "Analyze internal processes"
+        - "Analyze financial data"
         - "Evaluate performance"
         - "Assess effectiveness"
+        - "Examine systems"
+        - "Examine financial records"
+        - "Evaluate environmental regulations"
+        - "Assess compliance"
       proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
       
     - skill: "Problem Solving"
-      canonical_terms: ["problem solving", "troubleshooting", "issue resolution"]
+      canonical_terms: ["problem solving", "troubleshooting", "troubleshoot", "solve", "resolve", "determine", "identify"]
       related_tasks:
         - "Troubleshoot technical issues"
         - "Resolve customer complaints"
+        - "Resolve conflicts"
         - "Identify solutions"
+        - "Determine root causes"
         - "Address problems"
+        - "Determine requirements"
+        - "Identify opportunities"
       proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
       
     - skill: "Decision Making"
-      canonical_terms: ["decision making", "judgment", "choice"]
+      canonical_terms: ["decision making", "decision", "decide", "judgment", "choice", "approve", "select", "determine"]
       related_tasks:
         - "Make strategic decisions"
+        - "Approve project designs"
+        - "Approve contracts"
         - "Choose best options"
         - "Determine priorities"
         - "Select approaches"
+        - "Determine policy"
+        - "Set goals"
       proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
       
     - skill: "Creative Thinking"
-      canonical_terms: ["creativity", "innovation", "creative thinking"]
+      canonical_terms: ["creativity", "creative", "innovation", "innovate", "create", "design", "develop", "formulate"]
       related_tasks:
         - "Develop new concepts"
         - "Design creative solutions"
+        - "Design systems"
+        - "Design plans"
         - "Generate ideas"
         - "Create content"
+        - "Formulate plans"
+        - "Develop strategies"
+        - "Create presentations"
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+      
+    - skill: "Research"
+      canonical_terms: ["research", "investigate", "study", "explore", "collect data", "gather information"]
+      related_tasks:
+        - "Research industry trends"
+        - "Conduct research"
+        - "Investigate issues"
+        - "Study market conditions"
+        - "Collect data"
+        - "Gather information"
+        - "Keep informed of trends"
       proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
       
   interpersonal_skills:
     - skill: "Communication"
-      canonical_terms: ["communication", "verbal communication", "written communication"]
+      canonical_terms: ["communication", "communicate", "verbal", "written", "present", "confer", "discuss", "explain", "write", "report"]
       related_tasks:
         - "Communicate with stakeholders"
         - "Present information"
+        - "Present findings"
         - "Write reports"
         - "Conduct meetings"
+        - "Confer with clients"
+        - "Confer with department heads"
+        - "Discuss topics"
+        - "Explain technical matters"
+        - "Report to management"
+        - "Provide presentations"
       proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
       
     - skill: "Leadership"
-      canonical_terms: ["leadership", "team leadership", "management"]
+      canonical_terms: ["leadership", "lead", "team leadership", "management", "manage", "direct", "supervise", "oversee"]
       related_tasks:
         - "Lead teams"
         - "Manage projects"
+        - "Manage sales team"
+        - "Manage employees"
         - "Supervise employees"
+        - "Supervise staff"
         - "Direct operations"
+        - "Direct departments"
+        - "Direct project design"
+        - "Oversee activities"
+        - "Set goals"
       proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
       
     - skill: "Collaboration"
-      canonical_terms: ["collaboration", "teamwork", "cooperation"]
+      canonical_terms: ["collaboration", "collaborate", "teamwork", "cooperation", "cooperate", "coordinate", "work with"]
       related_tasks:
         - "Work with team members"
         - "Coordinate with partners"
+        - "Coordinate activities"
+        - "Coordinate with media"
         - "Collaborate on projects"
         - "Cooperate with colleagues"
+        - "Work with customers"
       proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
       
     - skill: "Customer Service"
-      canonical_terms: ["customer service", "client relations", "customer care"]
+      canonical_terms: ["customer service", "client relations", "customer care", "client", "customer", "assist"]
       related_tasks:
         - "Assist customers"
         - "Address customer needs"
         - "Handle inquiries"
         - "Resolve complaints"
+        - "Provide support"
+        - "Work with customers"
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+      
+    - skill: "Negotiation"
+      canonical_terms: ["negotiation", "negotiate", "bargain", "deal", "contract"]
+      related_tasks:
+        - "Negotiate contracts"
+        - "Negotiate deals"
+        - "Negotiate agreements"
+        - "Transact business"
+        - "Establish contracts"
       proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
       
   technical_skills:
     - skill: "Data Analysis"
-      canonical_terms: ["data analysis", "statistical analysis", "data science"]
+      canonical_terms: ["data analysis", "data", "statistical analysis", "data science", "analyze data", "examine data"]
       related_tasks:
         - "Analyze datasets"
+        - "Analyze financial data"
         - "Perform statistical analysis"
         - "Interpret data trends"
         - "Create data visualizations"
+        - "Examine data"
+        - "Collect data"
       tools: ["Excel", "SQL", "Python", "R", "Tableau", "Power BI"]
       proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
       
     - skill: "Programming"
-      canonical_terms: ["programming", "coding", "software development"]
+      canonical_terms: ["programming", "coding", "software development", "develop software", "implement systems"]
       related_tasks:
         - "Write code"
         - "Develop software"
+        - "Develop systems"
         - "Debug programs"
         - "Maintain applications"
+        - "Implement recordkeeping systems"
       tools: ["Python", "Java", "JavaScript", "C++", "SQL"]
       proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
       
-    - skill: "Digital Document Creation"
-      canonical_terms: ["document creation", "word processing", "documentation"]
+    - skill: "Planning and Organizing"
+      canonical_terms: ["planning", "plan", "organize", "schedule", "coordinate", "arrange", "prepare"]
       related_tasks:
-        - "Create documents"
+        - "Plan projects"
+        - "Plan budgets"
+        - "Plan advertising campaigns"
+        - "Organize activities"
+        - "Schedule work"
+        - "Prepare budgets"
+        - "Prepare reports"
+        - "Coordinate activities"
+        - "Set goals and deadlines"
+      tools: ["MS Project", "Outlook", "Calendar tools"]
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+      
+    - skill: "Engineering and Design"
+      canonical_terms: ["engineering", "design", "develop", "engineer", "technical design", "formulate"]
+      related_tasks:
+        - "Design systems"
+        - "Design plans"
+        - "Design insurance plans"
+        - "Engineer solutions"
+        - "Develop technical specifications"
+        - "Formulate designs"
+        - "Direct project design"
+      tools: ["CAD", "AutoCAD", "SolidWorks", "MATLAB"]
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+      
+    - skill: "Project Management"
+      canonical_terms: ["project management", "project", "program management", "manage projects", "direct projects"]
+      related_tasks:
+        - "Manage projects"
+        - "Direct projects"
+        - "Plan timelines"
+        - "Coordinate resources"
+        - "Track progress"
+        - "Monitor project status"
+        - "Review project design"
+      tools: ["MS Project", "Jira", "Asana", "Trello"]
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+      
+    - skill: "Financial Management"
+      canonical_terms: ["financial", "budget", "budgeting", "financial planning", "calculate", "estimate", "cost"]
+      related_tasks:
+        - "Prepare budgets"
+        - "Administer budgets"
+        - "Control budgets"
+        - "Analyze financial data"
+        - "Calculate costs"
+        - "Estimate costs"
+        - "Forecast revenue"
+        - "Manage expenses"
+        - "Calculate premiums"
+        - "Determine financial soundness"
+      tools: ["Excel", "QuickBooks", "SAP", "Oracle Financials"]
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+      
+    - skill: "Quality Control and Inspection"
+      canonical_terms: ["quality control", "quality", "inspect", "inspection", "examine", "review", "evaluate"]
+      related_tasks:
+        - "Inspect products"
+        - "Inspect layouts"
+        - "Examine systems"
+        - "Review designs"
+        - "Review contracts"
+        - "Evaluate quality"
+        - "Ensure compliance"
+        - "Assess reliability"
+      tools: ["Quality management systems", "Testing equipment"]
+      proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
+      
+    - skill: "Documentation and Reporting"
+      canonical_terms: ["documentation", "document", "reporting", "report", "write", "prepare reports", "record"]
+      related_tasks:
         - "Prepare reports"
         - "Write documentation"
+        - "Document systems"
+        - "Report to management"
+        - "Create records"
+        - "Prepare accounting statements"
         - "Develop presentations"
       tools: ["Microsoft Word", "Google Docs", "PowerPoint", "LaTeX"]
       proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
       
-    - skill: "Project Management"
-      canonical_terms: ["project management", "program management", "project coordination"]
+    - skill: "Regulatory Compliance"
+      canonical_terms: ["compliance", "regulatory", "regulations", "policy", "standards", "procedures"]
       related_tasks:
-        - "Manage projects"
-        - "Plan timelines"
-        - "Coordinate resources"
-        - "Track progress"
-      tools: ["MS Project", "Jira", "Asana", "Trello"]
+        - "Ensure compliance"
+        - "Develop policies"
+        - "Implement procedures"
+        - "Follow regulations"
+        - "Evaluate regulations"
+        - "Establish standards"
+      tools: ["Compliance management systems"]
       proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
       
-    - skill: "Financial Analysis"
-      canonical_terms: ["financial analysis", "budgeting", "financial planning"]
+    - skill: "Process Improvement"
+      canonical_terms: ["process improvement", "optimize", "improve", "implement", "modify", "establish"]
       related_tasks:
-        - "Prepare budgets"
-        - "Analyze financial data"
-        - "Forecast revenue"
-        - "Manage expenses"
-      tools: ["Excel", "QuickBooks", "SAP", "Oracle Financials"]
+        - "Improve operations"
+        - "Implement changes"
+        - "Modify systems"
+        - "Establish procedures"
+        - "Recommend improvements"
+        - "Optimize processes"
+      tools: ["Lean", "Six Sigma", "Process mapping tools"]
       proficiency_levels: ["basic", "intermediate", "advanced", "expert"]
 
 # ============================================================================

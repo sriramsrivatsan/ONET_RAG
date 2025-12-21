@@ -168,6 +168,12 @@ class HybridRetriever:
             if skill_analysis:
                 computational_results['skill_analysis'] = skill_analysis
         
+        # Special handling for task count queries
+        if 'task' in query.lower() and ('most' in query.lower() or 'many' in query.lower() or 'count' in query.lower()):
+            task_analysis = self._analyze_tasks(df_subset)
+            if task_analysis:
+                computational_results['task_analysis'] = task_analysis
+        
         return computational_results
     
     def _compute_counts(self, df: pd.DataFrame, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -352,3 +358,45 @@ class HybridRetriever:
         logger.info(f"Skill analysis completed: {skill_analysis['occupations_with_skills']} occupations with skills identified", show_ui=False)
         
         return skill_analysis
+    
+    def _analyze_tasks(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """
+        Analyze task counts per occupation
+        
+        Each row in the dataset represents a task, so counting rows per occupation
+        tells us which occupations have the most tasks defined.
+        
+        Returns task count statistics
+        """
+        task_analysis = {}
+        
+        if 'ONET job title' not in df.columns:
+            logger.warning("ONET job title column not found - cannot analyze tasks per occupation", show_ui=False)
+            return {}
+        
+        # Count tasks (rows) per occupation
+        tasks_per_occupation = df.groupby('ONET job title').size().sort_values(ascending=False)
+        
+        # Overall statistics
+        task_analysis['total_tasks'] = len(df)
+        task_analysis['total_occupations'] = df['ONET job title'].nunique()
+        task_analysis['avg_tasks_per_occupation'] = tasks_per_occupation.mean()
+        task_analysis['max_tasks_for_occupation'] = tasks_per_occupation.max()
+        task_analysis['min_tasks_for_occupation'] = tasks_per_occupation.min()
+        
+        # Top occupations by task count
+        task_analysis['top_occupations_by_task_count'] = tasks_per_occupation.head(20).to_dict()
+        
+        # Task count distribution
+        task_count_distribution = tasks_per_occupation.value_counts().sort_index()
+        task_analysis['task_count_distribution'] = task_count_distribution.to_dict()
+        
+        # Also by industry if available
+        if 'Industry_Canonical' in df.columns or 'Industry title' in df.columns:
+            industry_col = 'Industry_Canonical' if 'Industry_Canonical' in df.columns else 'Industry title'
+            tasks_per_industry = df.groupby(industry_col).size().sort_values(ascending=False)
+            task_analysis['top_industries_by_task_count'] = tasks_per_industry.head(10).to_dict()
+        
+        logger.info(f"Task analysis completed: {task_analysis['total_tasks']} tasks across {task_analysis['total_occupations']} occupations", show_ui=False)
+        
+        return task_analysis

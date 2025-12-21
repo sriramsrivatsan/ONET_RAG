@@ -30,10 +30,20 @@ The dataset has been enriched with a comprehensive labor market data dictionary 
 - Task_Importance_Level: Task importance categories
 - Required_Education: Typical education level required
 
+DATASET STRUCTURE:
+- Each row represents ONE TASK for an occupation
+- To count tasks per occupation, count the number of rows for that occupation
+- The "Task Count Analysis" section provides this information when available
+
 IMPORTANT: When asked about skills or skill diversity:
 - Use the Skill_Count field to identify occupations with diverse skill sets
 - Reference the Extracted_Skills field for specific skill requirements
 - The skill data comes from automated analysis of task descriptions using a labor market ontology
+
+IMPORTANT: When asked about task counts or which occupations have the most tasks:
+- Use the task_analysis section which counts rows (tasks) per occupation
+- Each row is a task, so counting rows per occupation gives task counts
+- The data IS available through the task count analysis
 
 CRITICAL RULES:
 - Base all answers strictly on the provided data
@@ -144,6 +154,31 @@ Your responses should be:
                     context_parts.append(f"\nIndustries by Average Skill Requirements:")
                     for industry, avg_skills in list(skill_data['industries_by_avg_skills'].items())[:10]:
                         context_parts.append(f"  - {industry}: {avg_skills:.1f} avg skills")
+            
+            # Task Analysis (task counts per occupation)
+            if 'task_analysis' in computational_results:
+                context_parts.append("\n=== TASK COUNT ANALYSIS ===")
+                task_data = computational_results['task_analysis']
+                
+                context_parts.append(f"\nDataset Structure:")
+                context_parts.append(f"- Total tasks in dataset: {task_data.get('total_tasks', 0):,}")
+                context_parts.append(f"- Total occupations: {task_data.get('total_occupations', 0):,}")
+                context_parts.append(f"- Average tasks per occupation: {task_data.get('avg_tasks_per_occupation', 0):.1f}")
+                context_parts.append(f"- Maximum tasks for any occupation: {task_data.get('max_tasks_for_occupation', 0):,}")
+                context_parts.append(f"- Minimum tasks for any occupation: {task_data.get('min_tasks_for_occupation', 0):,}")
+                
+                context_parts.append(f"\nNOTE: Each row in the dataset represents one task. The number of tasks per occupation")
+                context_parts.append(f"is determined by counting how many rows (tasks) belong to each occupation.")
+                
+                if 'top_occupations_by_task_count' in task_data:
+                    context_parts.append(f"\nTop 20 Occupations by Number of Tasks:")
+                    for occupation, task_count in list(task_data['top_occupations_by_task_count'].items())[:20]:
+                        context_parts.append(f"  - {occupation}: {task_count:,} tasks")
+                
+                if 'top_industries_by_task_count' in task_data:
+                    context_parts.append(f"\nTop Industries by Total Task Count:")
+                    for industry, task_count in list(task_data['top_industries_by_task_count'].items())[:10]:
+                        context_parts.append(f"  - {industry}: {task_count:,} tasks")
         
         return '\n'.join(context_parts)
     

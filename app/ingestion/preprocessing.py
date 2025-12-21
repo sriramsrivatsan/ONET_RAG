@@ -232,12 +232,12 @@ class DataPreprocessor:
         # Fill numeric columns with 0
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         for col in numeric_cols:
-            df[col].fillna(0, inplace=True)
+            df[col] = df[col].fillna(0)
         
         # Fill text columns with empty string
         text_cols = df.select_dtypes(include=['object']).columns
         for col in text_cols:
-            df[col].fillna('', inplace=True)
+            df[col] = df[col].fillna('')
         
         return df
     
