@@ -234,10 +234,17 @@ class VectorStore:
         
         # Helper function to safely get string value
         def safe_str(value):
-            if pd.isna(value):
+            if value is None:
                 return None
             if isinstance(value, (list, tuple)):
                 return ' '.join(str(v) for v in value)
+            # For scalar values, check if NaN
+            try:
+                if pd.isna(value):
+                    return None
+            except (TypeError, ValueError):
+                # pd.isna might fail on some types, just convert to string
+                pass
             return str(value)
         
         # Add key fields
@@ -272,11 +279,22 @@ class VectorStore:
             """Check if value is valid (not NaN, not None, not empty array)"""
             if val is None:
                 return False
-            if pd.isna(val):
-                return False
-            # Handle numpy arrays and lists
+            
+            # For arrays/lists, check if non-empty
             if hasattr(val, '__len__') and not isinstance(val, str):
-                return len(val) > 0
+                try:
+                    return len(val) > 0
+                except:
+                    return False
+            
+            # For scalar values, use pd.isna
+            try:
+                if pd.isna(val):
+                    return False
+            except (TypeError, ValueError):
+                # pd.isna might fail on some types, assume valid
+                pass
+            
             return True
         
         # Add string fields
