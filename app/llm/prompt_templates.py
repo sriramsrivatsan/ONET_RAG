@@ -19,12 +19,29 @@ Your role is to:
 4. Cite specific data points when making claims
 5. Be transparent about limitations and data gaps
 
+AVAILABLE DATA FIELDS:
+The dataset has been enriched with a comprehensive labor market data dictionary that includes:
+- Industry_Canonical: Standardized industry names (NAICS-based)
+- Extracted_Skills: Skills automatically extracted from job task descriptions
+- Skill_Count: Number of distinct skills identified for each occupation
+- Canonical_Activities: Standardized work activity verbs
+- Occupation_Major_Group: SOC-based occupation categories
+- Wage_Band: Wage classifications (Entry/Mid/Senior/Executive Level)
+- Task_Importance_Level: Task importance categories
+- Required_Education: Typical education level required
+
+IMPORTANT: When asked about skills or skill diversity:
+- Use the Skill_Count field to identify occupations with diverse skill sets
+- Reference the Extracted_Skills field for specific skill requirements
+- The skill data comes from automated analysis of task descriptions using a labor market ontology
+
 CRITICAL RULES:
 - Base all answers strictly on the provided data
 - If you use ANY external knowledge or make inferences, EXPLICITLY label them in a separate "External / Inferred Data" section
 - Never hallucinate statistics or facts not in the data
 - If data is insufficient, clearly state what's missing
-- When presenting numbers, always cite the source (e.g., "Based on Employment field...")
+- When presenting numbers, always cite the source (e.g., "Based on Employment field..." or "Based on Skill_Count field...")
+- For skill-related queries, ALWAYS check if Skill_Count or Extracted_Skills data is provided
 
 Your responses should be:
 - Accurate and grounded in data
@@ -54,6 +71,19 @@ Your responses should be:
                     context_parts.append(f"Occupation: {metadata['onet_job_title']}")
                 if metadata.get('industry_title'):
                     context_parts.append(f"Industry: {metadata['industry_title']}")
+                
+                # Add enriched fields if available
+                if metadata.get('industry_canonical'):
+                    context_parts.append(f"Canonical Industry: {metadata['industry_canonical']}")
+                if metadata.get('occupation_major_group'):
+                    context_parts.append(f"Occupation Group: {metadata['occupation_major_group']}")
+                if metadata.get('skill_count'):
+                    context_parts.append(f"Skill Count: {metadata['skill_count']} distinct skills")
+                if metadata.get('extracted_skills'):
+                    context_parts.append(f"Identified Skills: {metadata['extracted_skills']}")
+                if metadata.get('wage_band'):
+                    context_parts.append(f"Wage Band: {metadata['wage_band']}")
+                
                 context_parts.append(f"Content: {text}\n")
         
         # Add computational results
@@ -93,6 +123,27 @@ Your responses should be:
                     context_parts.append(f"\n{key}:")
                     for name, val in values.items():
                         context_parts.append(f"  - {name}: {val:,.2f}")
+            
+            # Skill Analysis (from data dictionary enrichment)
+            if 'skill_analysis' in computational_results:
+                context_parts.append("\n=== SKILL DIVERSITY ANALYSIS (from Data Dictionary) ===")
+                skill_data = computational_results['skill_analysis']
+                
+                context_parts.append(f"\nOverall Statistics:")
+                context_parts.append(f"- Total occupations analyzed: {skill_data.get('total_occupations', 0):,}")
+                context_parts.append(f"- Occupations with identified skills: {skill_data.get('occupations_with_skills', 0):,}")
+                context_parts.append(f"- Average skills per occupation: {skill_data.get('avg_skills_per_occupation', 0):.1f}")
+                context_parts.append(f"- Maximum skills in any occupation: {skill_data.get('max_skills_in_occupation', 0):.0f}")
+                
+                if 'top_diverse_occupations' in skill_data:
+                    context_parts.append(f"\nTop 20 Occupations by Skill Diversity (based on Skill_Count):")
+                    for occupation, skill_count in list(skill_data['top_diverse_occupations'].items())[:20]:
+                        context_parts.append(f"  - {occupation}: {skill_count:.0f} distinct skills")
+                
+                if 'industries_by_avg_skills' in skill_data:
+                    context_parts.append(f"\nIndustries by Average Skill Requirements:")
+                    for industry, avg_skills in list(skill_data['industries_by_avg_skills'].items())[:10]:
+                        context_parts.append(f"  - {industry}: {avg_skills:.1f} avg skills")
         
         return '\n'.join(context_parts)
     

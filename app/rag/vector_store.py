@@ -280,6 +280,34 @@ class VectorStore:
                 except:
                     pass
         
+        # Add enriched fields from data dictionary
+        enriched_str_fields = [
+            'Industry_Canonical', 'Occupation_Major_Group', 'Wage_Band',
+            'Task_Importance_Level', 'Required_Education', 'NAICS_Code'
+        ]
+        
+        for field in enriched_str_fields:
+            if field in row.index and pd.notna(row[field]):
+                metadata[field.lower()] = str(row[field])
+        
+        # Add skill count if available
+        if 'Skill_Count' in row.index and pd.notna(row['Skill_Count']):
+            try:
+                metadata['skill_count'] = int(row['Skill_Count'])
+            except:
+                pass
+        
+        # Add extracted skills (convert list to string for metadata)
+        if 'Extracted_Skills' in row.index and pd.notna(row['Extracted_Skills']):
+            try:
+                if isinstance(row['Extracted_Skills'], list) and len(row['Extracted_Skills']) > 0:
+                    # Join skill names
+                    skill_names = [s['skill'] for s in row['Extracted_Skills'] if isinstance(s, dict)]
+                    if skill_names:
+                        metadata['extracted_skills'] = ', '.join(skill_names[:10])  # Limit to 10 skills
+            except:
+                pass
+        
         return metadata
     
     def search(

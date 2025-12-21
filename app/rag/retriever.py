@@ -162,10 +162,16 @@ class HybridRetriever:
                 params['top_n']
             )
         
+        # Special handling for skill-related queries
+        if 'skill' in query.lower() or 'diverse' in query.lower():
+            skill_analysis = self._analyze_skills(df_subset)
+            if skill_analysis:
+                computational_results['skill_analysis'] = skill_analysis
+        
         return computational_results
     
     def _compute_counts(self, df: pd.DataFrame, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Compute counts"""
+        """Compute counts including enriched fields"""
         counts = {}
         
         counts['total_rows'] = len(df)
@@ -175,6 +181,15 @@ class HybridRetriever:
         
         if 'ONET job title' in df.columns:
             counts['unique_occupations'] = df['ONET job title'].nunique()
+        
+        # Add enriched field counts
+        if 'Industry_Canonical' in df.columns:
+            counts['unique_canonical_industries'] = df['Industry_Canonical'].nunique()
+        
+        if 'Skill_Count' in df.columns:
+            counts['occupations_with_skills'] = (df['Skill_Count'] > 0).sum()
+            counts['total_skills_identified'] = df['Skill_Count'].sum()
+            counts['avg_skills_per_occupation'] = df['Skill_Count'].mean()
         
         return counts
     
@@ -290,3 +305,50 @@ class HybridRetriever:
             return self.df.loc[row_indices].copy()
         else:
             return pd.DataFrame()
+    
+    def _analyze_skills(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """
+        Analyze skill diversity and distribution from enriched data
+        
+        Returns skill-related statistics including occupations with most diverse skill sets
+        """
+        skill_analysis = {}
+        
+        # Check if enriched skill columns are available
+        if 'Skill_Count' not in df.columns:
+            logger.warning("Skill_Count column not found - data dictionary enrichment may not have run", show_ui=False)
+            return {}
+        
+        # Overall skill statistics
+        skill_analysis['total_occupations'] = len(df)
+        skill_analysis['occupations_with_skills'] = (df['Skill_Count'] > 0).sum()
+        skill_analysis['avg_skills_per_occupation'] = df['Skill_Count'].mean()
+        skill_analysis['max_skills_in_occupation'] = df['Skill_Count'].max()
+        skill_analysis['min_skills_in_occupation'] = df['Skill_Count'].min()
+        
+        # Get occupations ranked by skill diversity (Skill_Count)
+        if 'ONET job title' in df.columns:
+            occupation_skills = (
+                df.groupby('ONET job title')['Skill_Count']
+                .max()  # Max skills for any task in this occupation
+                .sort_values(ascending=False)
+            )
+            
+            skill_analysis['top_diverse_occupations'] = occupation_skills.head(20).to_dict()
+            
+            # Also provide by industry if available
+            if 'Industry_Canonical' in df.columns:
+                industry_avg_skills = (
+                    df.groupby('Industry_Canonical')['Skill_Count']
+                    .mean()
+                    .sort_values(ascending=False)
+                )
+                skill_analysis['industries_by_avg_skills'] = industry_avg_skills.head(10).to_dict()
+        
+        # Skill distribution
+        skill_counts = df['Skill_Count'].value_counts().sort_index()
+        skill_analysis['skill_count_distribution'] = skill_counts.to_dict()
+        
+        logger.info(f"Skill analysis completed: {skill_analysis['occupations_with_skills']} occupations with skills identified", show_ui=False)
+        
+        return skill_analysis
