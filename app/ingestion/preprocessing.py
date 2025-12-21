@@ -196,16 +196,22 @@ class DataPreprocessor:
         for field in enriched_fields:
             if field in df.columns:
                 # Handle list fields (like Canonical_Activities)
-                if df[field].dtype == 'object' and isinstance(df[field].iloc[0], list):
-                    text_fields.append(df[field].apply(lambda x: ' '.join(x) if isinstance(x, list) else str(x)))
-                else:
+                try:
+                    # Check if this is a list field by examining first non-null value
+                    sample_val = df[field].dropna().iloc[0] if len(df[field].dropna()) > 0 else None
+                    if sample_val is not None and isinstance(sample_val, list):
+                        text_fields.append(df[field].apply(lambda x: ' '.join(x) if isinstance(x, list) else str(x)))
+                    else:
+                        text_fields.append(df[field].fillna('').astype(str))
+                except (IndexError, AttributeError):
+                    # If we can't determine type, treat as string
                     text_fields.append(df[field].fillna('').astype(str))
         
         # Add extracted skills if available
         if 'Extracted_Skills' in df.columns:
             text_fields.append(
                 df['Extracted_Skills'].apply(
-                    lambda skills: ' '.join([s['skill'] for s in skills]) if isinstance(skills, list) else ''
+                    lambda skills: ' '.join([s.get('skill', '') for s in skills]) if isinstance(skills, list) and len(skills) > 0 else ''
                 )
             )
         

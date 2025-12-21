@@ -233,9 +233,11 @@ class LaborMarketDictionary:
         seen = set()
         unique_skills = []
         for skill in found_skills:
-            if skill['skill'] not in seen:
-                seen.add(skill['skill'])
-                unique_skills.append(skill)
+            # Ensure skill has the required 'skill' key
+            if isinstance(skill, dict) and 'skill' in skill:
+                if skill['skill'] not in seen:
+                    seen.add(skill['skill'])
+                    unique_skills.append(skill)
         
         return unique_skills
     

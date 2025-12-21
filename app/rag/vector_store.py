@@ -177,15 +177,21 @@ class VectorStore:
                 ids = []
                 
                 for idx, row in df.iterrows():
-                    # Create document text
-                    doc_text = self._create_document_text(row)
-                    
-                    # Create metadata
-                    metadata = self._create_metadata(row, idx)
-                    
-                    documents.append(doc_text)
-                    metadatas.append(metadata)
-                    ids.append(f"doc_{idx}")
+                    try:
+                        # Create document text
+                        doc_text = self._create_document_text(row)
+                        
+                        # Create metadata
+                        metadata = self._create_metadata(row, idx)
+                        
+                        documents.append(doc_text)
+                        metadatas.append(metadata)
+                        ids.append(f"doc_{idx}")
+                    except Exception as e:
+                        logger.error(f"Error processing row {idx}: {str(e)}", show_ui=False)
+                        logger.error(f"Row data types: {row.dtypes if hasattr(row, 'dtypes') else 'N/A'}", show_ui=False)
+                        # Re-raise to see full traceback
+                        raise
                 
                 # Create embeddings and add to collection in batches
                 total_docs = len(documents)
@@ -226,27 +232,52 @@ class VectorStore:
         """Create searchable document text from row"""
         parts = []
         
+        # Helper function to safely get string value
+        def safe_str(value):
+            if pd.isna(value):
+                return None
+            if isinstance(value, (list, tuple)):
+                return ' '.join(str(v) for v in value)
+            return str(value)
+        
         # Add key fields
-        if pd.notna(row.get('ONET job title')):
-            parts.append(f"Occupation: {row['ONET job title']}")
+        val = safe_str(row.get('ONET job title'))
+        if val:
+            parts.append(f"Occupation: {val}")
         
-        if pd.notna(row.get('Industry title')):
-            parts.append(f"Industry: {row['Industry title']}")
+        val = safe_str(row.get('Industry title'))
+        if val:
+            parts.append(f"Industry: {val}")
         
-        if pd.notna(row.get('Job description')):
-            parts.append(f"Description: {row['Job description']}")
+        val = safe_str(row.get('Job description'))
+        if val:
+            parts.append(f"Description: {val}")
         
-        if pd.notna(row.get('Detailed job tasks')):
-            parts.append(f"Tasks: {row['Detailed job tasks']}")
+        val = safe_str(row.get('Detailed job tasks'))
+        if val:
+            parts.append(f"Tasks: {val}")
         
-        if pd.notna(row.get('Detailed work activities')):
-            parts.append(f"Activities: {row['Detailed work activities']}")
+        val = safe_str(row.get('Detailed work activities'))
+        if val:
+            parts.append(f"Activities: {val}")
         
         return ' '.join(parts)
     
     def _create_metadata(self, row: pd.Series, idx: int) -> Dict[str, Any]:
         """Create metadata dictionary from row"""
         metadata = {'row_index': int(idx)}
+        
+        # Helper to safely check if value is usable
+        def is_valid_value(val):
+            """Check if value is valid (not NaN, not None, not empty array)"""
+            if val is None:
+                return False
+            if pd.isna(val):
+                return False
+            # Handle numpy arrays and lists
+            if hasattr(val, '__len__') and not isinstance(val, str):
+                return len(val) > 0
+            return True
         
         # Add string fields
         str_fields = [
@@ -255,8 +286,10 @@ class VectorStore:
         ]
         
         for field in str_fields:
-            if field in row.index and pd.notna(row[field]):
-                metadata[field.lower().replace(' ', '_')] = str(row[field])
+            if field in row.index:
+                val = row[field]
+                if is_valid_value(val):
+                    metadata[field.lower().replace(' ', '_')] = str(val)
         
         # Add numeric fields
         num_fields = [
@@ -265,20 +298,24 @@ class VectorStore:
         ]
         
         for field in num_fields:
-            if field in row.index and pd.notna(row[field]):
-                try:
-                    metadata[field.lower().replace(' ', '_')] = float(row[field])
-                except:
-                    pass
+            if field in row.index:
+                val = row[field]
+                if is_valid_value(val):
+                    try:
+                        metadata[field.lower().replace(' ', '_')] = float(val)
+                    except (ValueError, TypeError):
+                        pass
         
         # Add cluster IDs if present
         cluster_fields = ['task_cluster_id', 'activity_cluster_id', 'occupation_cluster_id']
         for field in cluster_fields:
-            if field in row.index and pd.notna(row[field]):
-                try:
-                    metadata[field] = int(row[field])
-                except:
-                    pass
+            if field in row.index:
+                val = row[field]
+                if is_valid_value(val):
+                    try:
+                        metadata[field] = int(val)
+                    except (ValueError, TypeError):
+                        pass
         
         # Add enriched fields from data dictionary
         enriched_str_fields = [
@@ -287,26 +324,34 @@ class VectorStore:
         ]
         
         for field in enriched_str_fields:
-            if field in row.index and pd.notna(row[field]):
-                metadata[field.lower()] = str(row[field])
+            if field in row.index:
+                val = row[field]
+                if is_valid_value(val):
+                    metadata[field.lower()] = str(val)
         
         # Add skill count if available
-        if 'Skill_Count' in row.index and pd.notna(row['Skill_Count']):
-            try:
-                metadata['skill_count'] = int(row['Skill_Count'])
-            except:
-                pass
+        if 'Skill_Count' in row.index:
+            val = row['Skill_Count']
+            if is_valid_value(val):
+                try:
+                    metadata['skill_count'] = int(val)
+                except (ValueError, TypeError):
+                    pass
         
         # Add extracted skills (convert list to string for metadata)
-        if 'Extracted_Skills' in row.index and pd.notna(row['Extracted_Skills']):
-            try:
-                if isinstance(row['Extracted_Skills'], list) and len(row['Extracted_Skills']) > 0:
-                    # Join skill names
-                    skill_names = [s['skill'] for s in row['Extracted_Skills'] if isinstance(s, dict)]
-                    if skill_names:
-                        metadata['extracted_skills'] = ', '.join(skill_names[:10])  # Limit to 10 skills
-            except:
-                pass
+        if 'Extracted_Skills' in row.index:
+            val = row['Extracted_Skills']
+            if is_valid_value(val):
+                try:
+                    # Handle list of skills
+                    if isinstance(val, list) and len(val) > 0:
+                        # Join skill names
+                        skill_names = [s.get('skill', '') for s in val if isinstance(s, dict) and s.get('skill')]
+                        # Explicit length check to avoid numpy array ambiguity
+                        if len(skill_names) > 0:
+                            metadata['extracted_skills'] = ', '.join(skill_names[:10])  # Limit to 10 skills
+                except Exception as e:
+                    logger.debug(f"Could not process Extracted_Skills for row {idx}: {str(e)}", show_ui=False)
         
         return metadata
     
