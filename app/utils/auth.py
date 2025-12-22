@@ -120,10 +120,6 @@ def render_login_dialog():
                     st.rerun()
                 else:
                     st.error("❌ Incorrect password. Please try again.")
-        
-        st.markdown("---")
-        st.caption("💡 For local development, the system works without a password if M_PASSWORD is not set.")
-        st.caption("On Render, set the M_PASSWORD environment variable in your service settings.")
 
 
 def require_authentication(func):
