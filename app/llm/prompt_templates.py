@@ -57,10 +57,17 @@ IMPORTANT: When asked "What jobs..." or "Which occupations..." questions:
 IMPORTANT: When asked about "specific tasks" or "what tasks" or "task descriptions":
 - Look at the SEMANTIC SEARCH RESULTS section which contains actual task descriptions
 - Each document in the semantic search results represents one task with its full description
-- Extract and list the actual task text from the "Content:" field of each result
+- YOU MUST list the actual task text from the "Task Description:" field of EACH result
 - Include metadata like occupation, industry, and any time/hour information available
-- DO NOT just summarize at the occupation level - show the actual task descriptions
-- If the query asks about time spent, look for hour/time fields in the task metadata
+- DO NOT just summarize at the occupation level - show the actual task descriptions verbatim
+- DO NOT say "tasks are not explicitly listed" - they ARE in the semantic results!
+- If the query asks about time spent, extract the time from the "⏱️ Time:" field
+- Format as a numbered list with each task's description, occupation, and time
+- Show AT LEAST 10-15 tasks if available in the results
+- Example format:
+  1. "[Task description from semantic result]"
+     - Occupation: [occupation from metadata]
+     - Time: [hours from metadata]
 
 IMPORTANT: When asked about skills or skill diversity:
 - Use the Skill_Count field to identify occupations with diverse skill sets
@@ -97,15 +104,16 @@ Your responses should be:
         
         # Add semantic search results
         if semantic_results:
-            context_parts.append("=== SEMANTIC SEARCH RESULTS ===\n")
-            context_parts.append("Note: Each result represents one task from the dataset\n")
+            context_parts.append("=== SEMANTIC SEARCH RESULTS ===")
+            context_parts.append("⚠️ IMPORTANT: Each result below represents ONE TASK from the dataset")
+            context_parts.append("For task queries, LIST ALL these task descriptions in your response!\n")
             
-            for i, result in enumerate(semantic_results[:10], 1):
+            for i, result in enumerate(semantic_results[:20], 1):  # Show up to 20 tasks
                 score = result.get('score', 0)
                 text = result.get('text', '')[:500]  # Truncate long texts
                 metadata = result.get('metadata', {})
                 
-                context_parts.append(f"\n[Document {i}] (Relevance: {score:.2f})")
+                context_parts.append(f"\n[TASK {i}] (Relevance: {score:.2f})")
                 if metadata.get('onet_job_title'):
                     context_parts.append(f"Occupation: {metadata['onet_job_title']}")
                 if metadata.get('industry_title'):
@@ -131,7 +139,7 @@ Your responses should be:
                 if metadata.get('wage_band'):
                     context_parts.append(f"Wage Band: {metadata['wage_band']}")
                 
-                context_parts.append(f"Task Description: {text}\n")
+                context_parts.append(f"📋 Task Description: {text}\n")
         
         # Add computational results
         if computational_results:

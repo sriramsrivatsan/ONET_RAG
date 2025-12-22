@@ -44,20 +44,32 @@ class HybridQueryRouter:
         # Extract query parameters
         params = self._extract_parameters(query_lower)
         
-        # Classify intent
-        if comp_matches > 0 and sem_matches > 0:
-            intent = QueryIntent.HYBRID
-            logger.debug(f"Query classified as HYBRID (comp:{comp_matches}, sem:{sem_matches})")
-        elif comp_matches > sem_matches:
-            intent = QueryIntent.COMPUTATIONAL
-            logger.debug(f"Query classified as COMPUTATIONAL (matches:{comp_matches})")
-        elif sem_matches > 0:
+        # CRITICAL: Override classification for task-level queries
+        # Task queries should be SEMANTIC ONLY - no computational filtering
+        task_indicators = ['specific tasks', 'what tasks', 'which tasks', 'tasks that', 
+                          'tasks involve', 'task descriptions', 'list of tasks', 'list tasks']
+        is_task_query = any(indicator in query_lower for indicator in task_indicators)
+        
+        if is_task_query:
             intent = QueryIntent.SEMANTIC
-            logger.debug(f"Query classified as SEMANTIC (matches:{sem_matches})")
+            params['task_query'] = True
+            params['top_n'] = 20  # Get more results for task queries
+            logger.info(f"Detected TASK QUERY - forcing SEMANTIC intent with k=20", show_ui=False)
         else:
-            # Default to hybrid for ambiguous queries
-            intent = QueryIntent.HYBRID
-            logger.debug("Query classified as HYBRID (default)")
+            # Classify intent normally for non-task queries
+            if comp_matches > 0 and sem_matches > 0:
+                intent = QueryIntent.HYBRID
+                logger.debug(f"Query classified as HYBRID (comp:{comp_matches}, sem:{sem_matches})")
+            elif comp_matches > sem_matches:
+                intent = QueryIntent.COMPUTATIONAL
+                logger.debug(f"Query classified as COMPUTATIONAL (matches:{comp_matches})")
+            elif sem_matches > 0:
+                intent = QueryIntent.SEMANTIC
+                logger.debug(f"Query classified as SEMANTIC (matches:{sem_matches})")
+            else:
+                # Default to hybrid for ambiguous queries
+                intent = QueryIntent.HYBRID
+                logger.debug("Query classified as HYBRID (default)")
         
         params['intent'] = intent.value
         params['comp_score'] = comp_matches
