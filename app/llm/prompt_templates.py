@@ -34,6 +34,18 @@ DATASET STRUCTURE:
 - Each row represents ONE TASK for an occupation
 - To count tasks per occupation, count the number of rows for that occupation
 - The "Task Count Analysis" section provides this information when available
+- **EMPLOYMENT DATA**: The Employment column contains values at the TASK level, not occupation level
+  - Different tasks within the same occupation have different employment values
+  - To get total employment for occupations, aggregate by occupation first (take unique value per occupation)
+  - Employment values appear to be in thousands (e.g., 31.17 = 31,170 workers)
+
+IMPORTANT: When asked about employment or "total workers":
+- Use the "EMPLOYMENT FOR MATCHING OCCUPATIONS" section if available
+- Report the total_employment value clearly
+- Note that employment values appear to be in thousands
+- Example: If total_employment = 57.46, report as "approximately 57,460 workers" or "57.46 thousand workers"
+- Always specify the number of occupations included in the total
+- Do NOT sum employment at the task level - this produces incorrect results
 
 IMPORTANT: When asked "What jobs..." or "Which occupations..." questions:
 - If you see "OCCUPATION PATTERN MATCHING ANALYSIS" in the context, list ALL occupations shown
@@ -220,6 +232,24 @@ Your responses should be:
                     
                     context_parts.append(f"\nIMPORTANT: List ALL {len(pattern_data['top_occupations'])} occupations shown above, ")
                     context_parts.append(f"not just the first one. These are ranked by the percentage of matching tasks.")
+            
+            # Employment for Matching Occupations
+            if 'employment_for_matching_occupations' in computational_results:
+                context_parts.append("\n=== EMPLOYMENT FOR MATCHING OCCUPATIONS ===")
+                emp_data = computational_results['employment_for_matching_occupations']
+                
+                context_parts.append(f"\nTotal Employment: {emp_data['total_employment']:.2f}")
+                context_parts.append(f"Number of Occupations: {emp_data['occupations_count']}")
+                context_parts.append(f"Note: {emp_data.get('note', '')}")
+                
+                context_parts.append(f"\nEmployment by Occupation:")
+                sorted_occs = sorted(emp_data['per_occupation'].items(), key=lambda x: x[1], reverse=True)
+                for occ, emp in sorted_occs:
+                    context_parts.append(f"  - {occ}: {emp:.2f}")
+                
+                context_parts.append(f"\nIMPORTANT: The total employment figure ({emp_data['total_employment']:.2f}) ")
+                context_parts.append(f"represents the sum of employment across {emp_data['occupations_count']} occupations.")
+                context_parts.append(f"Each occupation's employment is counted once (not per task).")
         
         return '\n'.join(context_parts)
     

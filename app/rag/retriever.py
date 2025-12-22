@@ -212,6 +212,30 @@ class HybridRetriever:
                 )
                 computational_results['occupation_pattern_analysis'] = occupation_analysis
                 logger.info(f"Pattern analysis complete: {len(occupation_analysis.get('top_occupations', []))} occupations matched", show_ui=False)
+                
+                # If this is also an employment query, compute employment for matching occupations
+                if 'employment' in query_lower or 'total' in query_lower or 'how many' in query_lower:
+                    matching_occupations = [occ for occ, _ in occupation_analysis.get('top_occupations', [])]
+                    if matching_occupations:
+                        logger.info(f"Computing employment for {len(matching_occupations)} matching occupations", show_ui=False)
+                        
+                        # Get employment for matching occupations only
+                        matching_occ_employment = self.df[
+                            self.df['ONET job title'].isin(matching_occupations)
+                        ].groupby('ONET job title')['Employment'].first()
+                        
+                        total_employment = matching_occ_employment.sum()
+                        
+                        computational_results['employment_for_matching_occupations'] = {
+                            'total_employment': float(total_employment),
+                            'occupations_count': len(matching_occupations),
+                            'per_occupation': {
+                                occ: float(emp) 
+                                for occ, emp in matching_occ_employment.items()
+                            },
+                            'note': 'Employment aggregated at occupation level, not task level'
+                        }
+                        logger.info(f"Employment for matching occupations: {total_employment:.2f} across {len(matching_occupations)} occupations", show_ui=False)
         
         return computational_results
     
@@ -243,7 +267,27 @@ class HybridRetriever:
         totals = {}
         
         if 'Employment' in df.columns:
-            totals['total_employment'] = float(df['Employment'].sum())
+            # CRITICAL: Employment varies by TASK, not occupation
+            # Each row (task) has its own employment value
+            # To get total employment, we need to aggregate by occupation first
+            
+            if 'ONET job title' in df.columns:
+                # Get unique employment per occupation (take first value for each occupation)
+                # This represents the actual occupation-level employment
+                unique_employment_per_occ = df.groupby('ONET job title')['Employment'].first()
+                totals['total_employment'] = float(unique_employment_per_occ.sum())
+                totals['employment_note'] = f"Employment aggregated at occupation level ({len(unique_employment_per_occ)} occupations)"
+                
+                # Also include task-level sum for reference (incorrect but informative)
+                task_level_sum = float(df['Employment'].sum())
+                totals['task_level_employment_sum'] = task_level_sum
+                totals['warning'] = "Note: task_level_employment_sum is for reference only and should NOT be used"
+                
+                logger.info(f"Employment computed: {len(unique_employment_per_occ)} occupations, total={totals['total_employment']:.2f}", show_ui=False)
+            else:
+                # Fallback if occupation column not available
+                totals['total_employment'] = float(df['Employment'].sum())
+                logger.warning("Computing employment without occupation grouping - may be inaccurate", show_ui=False)
         
         if 'Hours per week spent on task' in df.columns:
             totals['total_task_hours'] = float(df['Hours per week spent on task'].sum())
