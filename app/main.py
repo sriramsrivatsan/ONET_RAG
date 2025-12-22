@@ -14,10 +14,14 @@ from app.ui.client import ClientView
 from app.ui.landing import LandingPage
 from app.utils.logging import logger
 from app.utils.config import config
+from app.utils.auth import is_authentication_required, is_authenticated, render_login_dialog
 
 
 def initialize_session_state():
     """Initialize session state variables"""
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+    
     if 'show_landing' not in st.session_state:
         st.session_state.show_landing = True
     
@@ -198,8 +202,17 @@ def check_persisted_index():
 
 def render_sidebar():
     """Render the sidebar with navigation and settings"""
+    from app.utils.auth import is_authentication_required, logout
+    
     with st.sidebar:
         st.title("🎯 Navigation")
+        
+        # Logout button if authentication is enabled
+        if is_authentication_required():
+            if st.button("🚪 Logout", use_container_width=True):
+                logout()
+                st.rerun()
+            st.markdown("---")
         
         # View selection
         view = st.radio(
@@ -284,6 +297,11 @@ def main():
     
     # Initialize session state
     initialize_session_state()
+    
+    # Authentication check - show login if required and not authenticated
+    if is_authentication_required() and not is_authenticated():
+        render_login_dialog()
+        return  # Stop here if not authenticated
     
     # Check for persisted index on startup
     check_persisted_index()
