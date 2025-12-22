@@ -238,18 +238,40 @@ Your responses should be:
                 context_parts.append("\n=== EMPLOYMENT FOR MATCHING OCCUPATIONS ===")
                 emp_data = computational_results['employment_for_matching_occupations']
                 
-                context_parts.append(f"\nTotal Employment: {emp_data['total_employment']:.2f}")
-                context_parts.append(f"Number of Occupations: {emp_data['occupations_count']}")
-                context_parts.append(f"Note: {emp_data.get('note', '')}")
-                
-                context_parts.append(f"\nEmployment by Occupation:")
-                sorted_occs = sorted(emp_data['per_occupation'].items(), key=lambda x: x[1], reverse=True)
-                for occ, emp in sorted_occs:
-                    context_parts.append(f"  - {occ}: {emp:.2f}")
-                
-                context_parts.append(f"\nIMPORTANT: The total employment figure ({emp_data['total_employment']:.2f}) ")
-                context_parts.append(f"represents the sum of employment across {emp_data['occupations_count']} occupations.")
-                context_parts.append(f"Each occupation's employment is counted once (not per task).")
+                # Defensive conversion to ensure all values are floats
+                try:
+                    total_emp = float(emp_data['total_employment']) if emp_data.get('total_employment') else 0.0
+                    occ_count = int(emp_data.get('occupations_count', 0))
+                    
+                    context_parts.append(f"\nTotal Employment: {total_emp:.2f}")
+                    context_parts.append(f"Number of Occupations: {occ_count}")
+                    context_parts.append(f"Note: {emp_data.get('note', '')}")
+                    
+                    # Employment by occupation with defensive float conversion
+                    per_occ = emp_data.get('per_occupation', {})
+                    if per_occ:
+                        context_parts.append(f"\nEmployment by Occupation:")
+                        
+                        # Convert all values to float defensively
+                        per_occ_floats = {}
+                        for occ, emp in per_occ.items():
+                            try:
+                                per_occ_floats[occ] = float(emp) if emp is not None else 0.0
+                            except (ValueError, TypeError) as e:
+                                logger.warning(f"Could not convert employment to float for {occ}: {emp}", show_ui=False)
+                                per_occ_floats[occ] = 0.0
+                        
+                        # Sort by employment
+                        sorted_occs = sorted(per_occ_floats.items(), key=lambda x: x[1], reverse=True)
+                        for occ, emp in sorted_occs:
+                            context_parts.append(f"  - {occ}: {emp:.2f}")
+                        
+                        context_parts.append(f"\nIMPORTANT: The total employment figure ({total_emp:.2f}) ")
+                        context_parts.append(f"represents the sum of employment across {occ_count} occupations.")
+                        context_parts.append(f"Each occupation's employment is counted once (not per task).")
+                except (ValueError, TypeError, KeyError) as e:
+                    logger.error(f"Error formatting employment data: {str(e)}", show_ui=False)
+                    context_parts.append(f"\n[Error formatting employment data - check logs]")
         
         return '\n'.join(context_parts)
     
