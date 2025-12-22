@@ -123,19 +123,51 @@ Your responses should be:
             if 'counts' in computational_results:
                 context_parts.append("\nCounts:")
                 for key, value in computational_results['counts'].items():
-                    context_parts.append(f"- {key}: {value:,}")
+                    try:
+                        # Format as integer with commas
+                        if isinstance(value, (int, float)):
+                            context_parts.append(f"- {key}: {int(value):,}")
+                        else:
+                            context_parts.append(f"- {key}: {int(float(value)):,}")
+                    except (ValueError, TypeError):
+                        # If can't convert to int, show as-is
+                        context_parts.append(f"- {key}: {value}")
             
             # Totals
             if 'totals' in computational_results:
                 context_parts.append("\nTotals:")
                 for key, value in computational_results['totals'].items():
-                    context_parts.append(f"- {key}: {value:,.2f}")
+                    # Skip non-numeric metadata fields
+                    if key in ['employment_note', 'warning', 'error']:
+                        continue
+                    
+                    # Try to format as number, skip if not numeric
+                    try:
+                        if isinstance(value, (int, float)):
+                            context_parts.append(f"- {key}: {float(value):,.2f}")
+                        elif isinstance(value, str):
+                            # Skip string values - they're metadata
+                            continue
+                        else:
+                            # Try to convert to float
+                            context_parts.append(f"- {key}: {float(value):,.2f}")
+                    except (ValueError, TypeError):
+                        # If conversion fails, skip this value
+                        logger.warning(f"Could not format total value for {key}: {value}", show_ui=False)
+                        continue
             
             # Averages
             if 'averages' in computational_results:
                 context_parts.append("\nAverages:")
                 for key, value in computational_results['averages'].items():
-                    context_parts.append(f"- {key}: {value:,.2f}")
+                    try:
+                        if isinstance(value, (int, float)):
+                            context_parts.append(f"- {key}: {float(value):,.2f}")
+                        else:
+                            context_parts.append(f"- {key}: {float(value):,.2f}")
+                    except (ValueError, TypeError):
+                        logger.warning(f"Could not format average value for {key}: {value}", show_ui=False)
+                        context_parts.append(f"- {key}: {value}")
             
             # Grouped results
             if 'grouped' in computational_results:
@@ -159,20 +191,39 @@ Your responses should be:
                 skill_data = computational_results['skill_analysis']
                 
                 context_parts.append(f"\nOverall Statistics:")
-                context_parts.append(f"- Total occupations analyzed: {skill_data.get('total_occupations', 0):,}")
-                context_parts.append(f"- Occupations with identified skills: {skill_data.get('occupations_with_skills', 0):,}")
-                context_parts.append(f"- Average skills per occupation: {skill_data.get('avg_skills_per_occupation', 0):.1f}")
-                context_parts.append(f"- Maximum skills in any occupation: {skill_data.get('max_skills_in_occupation', 0):.0f}")
+                context_parts.append(f"- Total occupations analyzed: {int(skill_data.get('total_occupations', 0)):,}")
+                context_parts.append(f"- Occupations with identified skills: {int(skill_data.get('occupations_with_skills', 0)):,}")
+                
+                # Defensive float formatting
+                try:
+                    avg_skills = float(skill_data.get('avg_skills_per_occupation', 0))
+                    context_parts.append(f"- Average skills per occupation: {avg_skills:.1f}")
+                except (ValueError, TypeError):
+                    context_parts.append(f"- Average skills per occupation: 0.0")
+                
+                try:
+                    max_skills = float(skill_data.get('max_skills_in_occupation', 0))
+                    context_parts.append(f"- Maximum skills in any occupation: {max_skills:.0f}")
+                except (ValueError, TypeError):
+                    context_parts.append(f"- Maximum skills in any occupation: 0")
                 
                 if 'top_diverse_occupations' in skill_data:
                     context_parts.append(f"\nTop 20 Occupations by Skill Diversity (based on Skill_Count):")
                     for occupation, skill_count in list(skill_data['top_diverse_occupations'].items())[:20]:
-                        context_parts.append(f"  - {occupation}: {skill_count:.0f} distinct skills")
+                        try:
+                            count_val = float(skill_count) if skill_count is not None else 0.0
+                            context_parts.append(f"  - {occupation}: {count_val:.0f} distinct skills")
+                        except (ValueError, TypeError):
+                            context_parts.append(f"  - {occupation}: {skill_count} distinct skills")
                 
                 if 'industries_by_avg_skills' in skill_data:
                     context_parts.append(f"\nIndustries by Average Skill Requirements:")
                     for industry, avg_skills in list(skill_data['industries_by_avg_skills'].items())[:10]:
-                        context_parts.append(f"  - {industry}: {avg_skills:.1f} avg skills")
+                        try:
+                            avg_val = float(avg_skills) if avg_skills is not None else 0.0
+                            context_parts.append(f"  - {industry}: {avg_val:.1f} avg skills")
+                        except (ValueError, TypeError):
+                            context_parts.append(f"  - {industry}: {avg_skills} avg skills")
             
             # Task Analysis (task counts per occupation)
             if 'task_analysis' in computational_results:
@@ -180,11 +231,37 @@ Your responses should be:
                 task_data = computational_results['task_analysis']
                 
                 context_parts.append(f"\nDataset Structure:")
-                context_parts.append(f"- Total tasks in dataset: {task_data.get('total_tasks', 0):,}")
-                context_parts.append(f"- Total occupations: {task_data.get('total_occupations', 0):,}")
-                context_parts.append(f"- Average tasks per occupation: {task_data.get('avg_tasks_per_occupation', 0):.1f}")
-                context_parts.append(f"- Maximum tasks for any occupation: {task_data.get('max_tasks_for_occupation', 0):,}")
-                context_parts.append(f"- Minimum tasks for any occupation: {task_data.get('min_tasks_for_occupation', 0):,}")
+                
+                # Defensive formatting for all numeric values
+                try:
+                    total_tasks = int(task_data.get('total_tasks', 0))
+                    context_parts.append(f"- Total tasks in dataset: {total_tasks:,}")
+                except (ValueError, TypeError):
+                    context_parts.append(f"- Total tasks in dataset: 0")
+                
+                try:
+                    total_occs = int(task_data.get('total_occupations', 0))
+                    context_parts.append(f"- Total occupations: {total_occs:,}")
+                except (ValueError, TypeError):
+                    context_parts.append(f"- Total occupations: 0")
+                
+                try:
+                    avg_tasks = float(task_data.get('avg_tasks_per_occupation', 0))
+                    context_parts.append(f"- Average tasks per occupation: {avg_tasks:.1f}")
+                except (ValueError, TypeError):
+                    context_parts.append(f"- Average tasks per occupation: 0.0")
+                
+                try:
+                    max_tasks = int(task_data.get('max_tasks_for_occupation', 0))
+                    context_parts.append(f"- Maximum tasks for any occupation: {max_tasks:,}")
+                except (ValueError, TypeError):
+                    context_parts.append(f"- Maximum tasks for any occupation: 0")
+                
+                try:
+                    min_tasks = int(task_data.get('min_tasks_for_occupation', 0))
+                    context_parts.append(f"- Minimum tasks for any occupation: {min_tasks:,}")
+                except (ValueError, TypeError):
+                    context_parts.append(f"- Minimum tasks for any occupation: 0")
                 
                 context_parts.append(f"\nNOTE: Each row in the dataset represents one task. The number of tasks per occupation")
                 context_parts.append(f"is determined by counting how many rows (tasks) belong to each occupation.")
@@ -192,12 +269,20 @@ Your responses should be:
                 if 'top_occupations_by_task_count' in task_data:
                     context_parts.append(f"\nTop 20 Occupations by Number of Tasks:")
                     for occupation, task_count in list(task_data['top_occupations_by_task_count'].items())[:20]:
-                        context_parts.append(f"  - {occupation}: {task_count:,} tasks")
+                        try:
+                            count = int(task_count)
+                            context_parts.append(f"  - {occupation}: {count:,} tasks")
+                        except (ValueError, TypeError):
+                            context_parts.append(f"  - {occupation}: {task_count} tasks")
                 
                 if 'top_industries_by_task_count' in task_data:
                     context_parts.append(f"\nTop Industries by Total Task Count:")
                     for industry, task_count in list(task_data['top_industries_by_task_count'].items())[:10]:
-                        context_parts.append(f"  - {industry}: {task_count:,} tasks")
+                        try:
+                            count = int(task_count)
+                            context_parts.append(f"  - {industry}: {count:,} tasks")
+                        except (ValueError, TypeError):
+                            context_parts.append(f"  - {industry}: {task_count} tasks")
             
             # Occupation Pattern Analysis (for "what jobs" queries)
             if 'occupation_pattern_analysis' in computational_results:
