@@ -35,6 +35,13 @@ DATASET STRUCTURE:
 - To count tasks per occupation, count the number of rows for that occupation
 - The "Task Count Analysis" section provides this information when available
 
+IMPORTANT: When asked "What jobs..." or "Which occupations..." questions:
+- If you see "OCCUPATION PATTERN MATCHING ANALYSIS" in the context, list ALL occupations shown
+- DO NOT just pick the first occupation - list at least the top 10-15 as ranked
+- Format as a clear numbered list with percentages/counts from the analysis
+- Include the matching task count and percentage for each occupation
+- Provide examples when available
+
 IMPORTANT: When asked about skills or skill diversity:
 - Use the Skill_Count field to identify occupations with diverse skill sets
 - Reference the Extracted_Skills field for specific skill requirements
@@ -179,6 +186,40 @@ Your responses should be:
                     context_parts.append(f"\nTop Industries by Total Task Count:")
                     for industry, task_count in list(task_data['top_industries_by_task_count'].items())[:10]:
                         context_parts.append(f"  - {industry}: {task_count:,} tasks")
+            
+            # Occupation Pattern Analysis (for "what jobs" queries)
+            if 'occupation_pattern_analysis' in computational_results:
+                context_parts.append("\n=== OCCUPATION PATTERN MATCHING ANALYSIS ===")
+                pattern_data = computational_results['occupation_pattern_analysis']
+                
+                context_parts.append(f"\nQuery Pattern Analysis:")
+                context_parts.append(f"- Total occupations analyzed: {pattern_data.get('total_occupations_analyzed', 0)}")
+                context_parts.append(f"- Occupations with matching tasks: {pattern_data.get('occupations_with_matches', 0)}")
+                context_parts.append(f"- Match criteria: Contains action verbs AND object keywords")
+                
+                context_parts.append(f"\nAction verbs searched: {', '.join(pattern_data.get('action_verbs_used', [])[:8])}...")
+                context_parts.append(f"Object keywords searched: {', '.join(pattern_data.get('object_keywords_used', [])[:8])}...")
+                
+                if 'top_occupations' in pattern_data:
+                    context_parts.append(f"\nTOP OCCUPATIONS RANKED BY MATCHING TASKS:")
+                    context_parts.append(f"(Showing occupations where tasks match the pattern)")
+                    context_parts.append(f"")
+                    
+                    for rank, (occupation, scores) in enumerate(pattern_data['top_occupations'], 1):
+                        context_parts.append(
+                            f"{rank}. {occupation}"
+                        )
+                        context_parts.append(
+                            f"   - Matching tasks: {scores['matching_tasks']}/{scores['total_tasks']} "
+                            f"({scores['percentage']:.1f}%)"
+                        )
+                        if scores.get('examples'):
+                            context_parts.append(f"   - Example tasks:")
+                            for example in scores['examples'][:2]:
+                                context_parts.append(f"      • {example}")
+                    
+                    context_parts.append(f"\nIMPORTANT: List ALL {len(pattern_data['top_occupations'])} occupations shown above, ")
+                    context_parts.append(f"not just the first one. These are ranked by the percentage of matching tasks.")
         
         return '\n'.join(context_parts)
     

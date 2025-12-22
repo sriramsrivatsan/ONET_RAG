@@ -174,6 +174,29 @@ class HybridRetriever:
             if task_analysis:
                 computational_results['task_analysis'] = task_analysis
         
+        # Special handling for "what jobs" pattern matching queries
+        query_lower = query.lower()
+        pattern_indicators = ['what jobs', 'which jobs', 'what occupations', 'which occupations', 
+                             'list jobs', 'list occupations', 'jobs that', 'occupations that']
+        
+        if any(indicator in query_lower for indicator in pattern_indicators):
+            # Detect document creation queries
+            if any(verb in query_lower for verb in ['create', 'develop', 'design', 'prepare', 'write', 'produce']):
+                if any(doc in query_lower for doc in ['document', 'report', 'spreadsheet', 'file', 'presentation', 
+                                                       'drawing', 'plan', 'specification', 'program', 'model']):
+                    
+                    action_verbs = ['create', 'develop', 'design', 'prepare', 'write', 'produce', 
+                                   'generate', 'build', 'draft', 'compose', 'formulate']
+                    object_keywords = ['document', 'documents', 'report', 'reports', 'spreadsheet', 'spreadsheets',
+                                      'file', 'files', 'drawing', 'drawings', 'plan', 'plans', 'specification',
+                                      'specifications', 'presentation', 'presentations', 'program', 'programs',
+                                      'model', 'models', 'diagram', 'chart', 'graph', 'blueprint', 'schematic']
+                    
+                    occupation_analysis = self._analyze_occupations_by_pattern(
+                        df_subset, action_verbs, object_keywords
+                    )
+                    computational_results['occupation_pattern_analysis'] = occupation_analysis
+        
         return computational_results
     
     def _compute_counts(self, df: pd.DataFrame, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -400,3 +423,68 @@ class HybridRetriever:
         logger.info(f"Task analysis completed: {task_analysis['total_tasks']} tasks across {task_analysis['total_occupations']} occupations", show_ui=False)
         
         return task_analysis
+    
+    def _analyze_occupations_by_pattern(
+        self,
+        df: pd.DataFrame,
+        action_verbs: List[str],
+        object_keywords: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Analyze which occupations have tasks matching specific patterns
+        
+        Args:
+            df: DataFrame with task data
+            action_verbs: Action verbs to match (e.g., ['create', 'develop'])
+            object_keywords: Object keywords to match (e.g., ['document', 'report'])
+        
+        Returns:
+            Dictionary with occupation rankings
+        """
+        occupation_scores = {}
+        
+        for occupation in df['ONET job title'].unique():
+            occ_tasks = df[df['ONET job title'] == occupation]['Detailed job tasks'].dropna()
+            
+            matching_count = 0
+            total_count = len(occ_tasks)
+            matching_examples = []
+            
+            for task in occ_tasks:
+                task_lower = task.lower()
+                
+                # Check if task contains both action and object
+                has_action = any(verb in task_lower for verb in action_verbs)
+                has_object = any(kw in task_lower for kw in object_keywords)
+                
+                if has_action and has_object:
+                    matching_count += 1
+                    if len(matching_examples) < 2:
+                        matching_examples.append(task[:120] + "...")
+            
+            if matching_count > 0:
+                occupation_scores[occupation] = {
+                    'matching_tasks': matching_count,
+                    'total_tasks': total_count,
+                    'percentage': (matching_count / total_count) * 100,
+                    'examples': matching_examples
+                }
+        
+        # Sort by percentage
+        sorted_occupations = sorted(
+            occupation_scores.items(),
+            key=lambda x: x[1]['percentage'],
+            reverse=True
+        )
+        
+        analysis = {
+            'total_occupations_analyzed': df['ONET job title'].nunique(),
+            'occupations_with_matches': len(occupation_scores),
+            'top_occupations': sorted_occupations[:15],
+            'action_verbs_used': action_verbs,
+            'object_keywords_used': object_keywords
+        }
+        
+        logger.info(f"Occupation pattern analysis: {len(occupation_scores)} occupations match the pattern", show_ui=False)
+        
+        return analysis

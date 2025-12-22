@@ -43,7 +43,9 @@ class Config:
     # Query Classification Thresholds
     COMPUTATIONAL_KEYWORDS = [
         'count', 'total', 'how many', 'sum', 'average', 'top', 'rank',
-        'percentage', 'proportion', 'compare', 'most', 'least', 'group by'
+        'percentage', 'proportion', 'compare', 'most', 'least', 'group by',
+        'what jobs', 'which jobs', 'what occupations', 'which occupations',
+        'list jobs', 'list occupations', 'jobs that', 'occupations that'
     ]
     
     SEMANTIC_KEYWORDS = [
