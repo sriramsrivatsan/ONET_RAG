@@ -35,6 +35,12 @@ class HybridQueryRouter:
         comp_matches = sum(1 for kw in self.computational_keywords if kw in query_lower)
         sem_matches = sum(1 for kw in self.semantic_keywords if kw in query_lower)
         
+        # Log which keywords matched
+        matched_comp = [kw for kw in self.computational_keywords if kw in query_lower]
+        matched_sem = [kw for kw in self.semantic_keywords if kw in query_lower]
+        
+        logger.info(f"Query classification: comp_matches={comp_matches} {matched_comp}, sem_matches={sem_matches} {matched_sem}", show_ui=False)
+        
         # Extract query parameters
         params = self._extract_parameters(query_lower)
         
@@ -167,6 +173,8 @@ class HybridQueryRouter:
             strategy['export_csv'] = True
         
         strategy['params'] = params
+        
+        logger.info(f"Execution strategy: vector={strategy['use_vector_search']}, agg={strategy['use_aggregations']}, pandas={strategy['use_pandas']}", show_ui=False)
         
         return strategy
     

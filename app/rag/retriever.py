@@ -179,23 +179,39 @@ class HybridRetriever:
         pattern_indicators = ['what jobs', 'which jobs', 'what occupations', 'which occupations', 
                              'list jobs', 'list occupations', 'jobs that', 'occupations that']
         
-        if any(indicator in query_lower for indicator in pattern_indicators):
+        pattern_detected = any(indicator in query_lower for indicator in pattern_indicators)
+        logger.info(f"Pattern matching check: pattern_detected={pattern_detected}", show_ui=False)
+        
+        if pattern_detected:
+            action_verbs_present = ['create', 'develop', 'design', 'prepare', 'write', 'produce']
+            object_keywords_present = ['document', 'report', 'spreadsheet', 'file', 'presentation', 
+                                      'drawing', 'plan', 'specification', 'program', 'model']
+            
+            has_action = any(verb in query_lower for verb in action_verbs_present)
+            has_object = any(doc in query_lower for doc in object_keywords_present)
+            
+            logger.info(f"Pattern matching: has_action={has_action}, has_object={has_object}", show_ui=False)
+            
             # Detect document creation queries
-            if any(verb in query_lower for verb in ['create', 'develop', 'design', 'prepare', 'write', 'produce']):
-                if any(doc in query_lower for doc in ['document', 'report', 'spreadsheet', 'file', 'presentation', 
-                                                       'drawing', 'plan', 'specification', 'program', 'model']):
-                    
-                    action_verbs = ['create', 'develop', 'design', 'prepare', 'write', 'produce', 
-                                   'generate', 'build', 'draft', 'compose', 'formulate']
-                    object_keywords = ['document', 'documents', 'report', 'reports', 'spreadsheet', 'spreadsheets',
-                                      'file', 'files', 'drawing', 'drawings', 'plan', 'plans', 'specification',
-                                      'specifications', 'presentation', 'presentations', 'program', 'programs',
-                                      'model', 'models', 'diagram', 'chart', 'graph', 'blueprint', 'schematic']
-                    
-                    occupation_analysis = self._analyze_occupations_by_pattern(
-                        df_subset, action_verbs, object_keywords
-                    )
-                    computational_results['occupation_pattern_analysis'] = occupation_analysis
+            if has_action and has_object:
+                logger.info("Pattern match FOUND - triggering occupation analysis", show_ui=False)
+                
+                action_verbs = ['create', 'develop', 'design', 'prepare', 'write', 'produce', 
+                               'generate', 'build', 'draft', 'compose', 'formulate']
+                object_keywords = ['document', 'documents', 'report', 'reports', 'spreadsheet', 'spreadsheets',
+                                  'file', 'files', 'drawing', 'drawings', 'plan', 'plans', 'specification',
+                                  'specifications', 'presentation', 'presentations', 'program', 'programs',
+                                  'model', 'models', 'diagram', 'chart', 'graph', 'blueprint', 'schematic']
+                
+                # CRITICAL: Use full dataframe, not filtered subset
+                # Pattern matching needs to analyze ALL occupations, not just semantically similar ones
+                logger.info(f"Analyzing {self.df['ONET job title'].nunique()} occupations for pattern", show_ui=False)
+                
+                occupation_analysis = self._analyze_occupations_by_pattern(
+                    self.df, action_verbs, object_keywords
+                )
+                computational_results['occupation_pattern_analysis'] = occupation_analysis
+                logger.info(f"Pattern analysis complete: {len(occupation_analysis.get('top_occupations', []))} occupations matched", show_ui=False)
         
         return computational_results
     
