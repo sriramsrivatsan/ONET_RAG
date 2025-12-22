@@ -12,6 +12,7 @@ from app.analytics.aggregations import DataAggregator
 from app.analytics.clustering import LaborMarketClusterer
 from app.analytics.similarity import SimilarityAnalyzer
 from app.rag.vector_store import VectorStore
+from app.ui.system_status import SystemStatusSidebar
 from app.utils.logging import logger
 from app.utils.helpers import get_memory_usage, get_system_info
 
@@ -26,7 +27,11 @@ class AdminView:
     def render(self):
         """Render the admin view"""
         
-        st.title("🔧 Labor Market RAG - Admin Panel")
+        # Render system status sidebar
+        SystemStatusSidebar.render(view_type='admin')
+        
+        st.title("🔧 Admin Panel - System Management")
+        st.markdown("Manage data ingestion, monitor system performance, and configure settings")
         st.markdown("---")
         
         # System status

@@ -11,12 +11,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.ui.admin import AdminView
 from app.ui.client import ClientView
+from app.ui.landing import LandingPage
 from app.utils.logging import logger
 from app.utils.config import config
 
 
 def initialize_session_state():
     """Initialize session state variables"""
+    if 'show_landing' not in st.session_state:
+        st.session_state.show_landing = True
+    
     if 'current_view' not in st.session_state:
         st.session_state.current_view = 'client'
     
@@ -272,10 +276,10 @@ def main():
     
     # Page configuration
     st.set_page_config(
-        page_title="Labor Market RAG",
+        page_title="Occupational Data Analysis System",
         page_icon="💼",
         layout="wide",
-        initial_sidebar_state="expanded"
+        initial_sidebar_state="auto"
     )
     
     # Initialize session state
@@ -284,20 +288,24 @@ def main():
     # Check for persisted index on startup
     check_persisted_index()
     
-    # Render sidebar
-    render_sidebar()
-    
-    # Render main content based on current view
-    if st.session_state.current_view == 'admin':
-        admin_view = AdminView()
-        admin_view.render()
+    # Show landing page or views
+    if st.session_state.get('show_landing', True):
+        # Show landing page (no sidebar)
+        landing_page = LandingPage()
+        landing_page.render()
     else:
-        client_view = ClientView()
-        client_view.render()
+        # Show admin or client view with sidebar
+        if st.session_state.current_view == 'admin':
+            admin_view = AdminView()
+            admin_view.render()
+        else:
+            client_view = ClientView()
+            client_view.render()
     
-    # Footer
-    st.markdown("---")
-    st.caption("Labor Market RAG System | Built with Streamlit + ChromaDB + OpenAI")
+    # Footer (only on landing page)
+    if st.session_state.get('show_landing', True):
+        st.markdown("---")
+        st.caption("Occupational Data Analysis System | Built with Advanced RAG Technology")
 
 
 if __name__ == "__main__":

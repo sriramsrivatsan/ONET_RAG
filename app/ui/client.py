@@ -8,6 +8,7 @@ from typing import Optional
 
 from app.llm.response_builder import QueryProcessor, ResponseBuilder
 from app.rag.retriever import HybridRetriever
+from app.ui.system_status import SystemStatusSidebar
 from app.utils.logging import logger
 from app.utils.config import config
 
@@ -21,13 +22,17 @@ class ClientView:
     def render(self):
         """Render the client view"""
         
-        st.title("💼 Labor Market Intelligence - Analyst Interface")
+        # Render system status sidebar
+        SystemStatusSidebar.render(view_type='client')
+        
+        st.title("📊 Analyst Interface - Labor Market Intelligence")
         st.markdown("Ask questions about occupations, industries, tasks, and labor market trends")
         st.markdown("---")
         
         # Check if system is ready
         if not self._check_system_ready():
             st.warning("⚠️ System not initialized. Please go to Admin panel to upload and process data.")
+            st.info("💡 Click the **Back to Home** button in the sidebar, then select **Admin View** to get started.")
             return
         
         # Initialize query processor if needed
@@ -123,7 +128,7 @@ class ClientView:
             show_debug = st.checkbox("Show Debug Info", value=False)
         
         # Query button
-        if st.button("🚀 Analyze Query", type="primary", use_container_width=True):
+        if st.button("🚀 Analyze Query", type="primary", width="stretch"):
             if not query.strip():
                 st.warning("Please enter a question")
                 return
@@ -258,7 +263,7 @@ class ClientView:
                         {'Industry': k, 'Employment': v}
                         for k, v in list(top_industries.items())[:10]
                     ])
-                    st.dataframe(ind_df, use_container_width=True)
+                    st.dataframe(ind_df, width="stretch")
             
             with col_b:
                 st.write("**Top 10 Occupations by Employment**")
@@ -268,7 +273,7 @@ class ClientView:
                         {'Occupation': k, 'Employment': v}
                         for k, v in list(top_occs.items())[:10]
                     ])
-                    st.dataframe(occ_df, use_container_width=True)
+                    st.dataframe(occ_df, width="stretch")
         
         # Query history
         if st.session_state.get('query_history'):
