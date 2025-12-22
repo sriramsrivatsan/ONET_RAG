@@ -176,13 +176,22 @@ class HybridRetriever:
         
         # Special handling for "what jobs" pattern matching queries
         query_lower = query.lower()
+        
+        # Detect if this is a TASK query vs JOB query
+        is_task_query = any(phrase in query_lower for phrase in ['specific tasks', 'what tasks', 'which tasks', 
+                                                                   'tasks that', 'tasks involve', 'task descriptions'])
+        is_job_query = any(phrase in query_lower for phrase in ['what jobs', 'which jobs', 'what occupations', 
+                                                                  'which occupations', 'list jobs', 'list occupations', 
+                                                                  'jobs that', 'occupations that'])
+        
         pattern_indicators = ['what jobs', 'which jobs', 'what occupations', 'which occupations', 
                              'list jobs', 'list occupations', 'jobs that', 'occupations that']
         
         pattern_detected = any(indicator in query_lower for indicator in pattern_indicators)
-        logger.info(f"Pattern matching check: pattern_detected={pattern_detected}", show_ui=False)
+        logger.info(f"Pattern matching check: pattern_detected={pattern_detected}, is_task_query={is_task_query}, is_job_query={is_job_query}", show_ui=False)
         
-        if pattern_detected:
+        # Only do occupation-level pattern matching for JOB queries, not TASK queries
+        if pattern_detected and is_job_query and not is_task_query:
             action_verbs_present = ['create', 'develop', 'design', 'prepare', 'write', 'produce']
             object_keywords_present = ['document', 'report', 'spreadsheet', 'file', 'presentation', 
                                       'drawing', 'plan', 'specification', 'program', 'model']

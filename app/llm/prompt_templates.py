@@ -54,6 +54,14 @@ IMPORTANT: When asked "What jobs..." or "Which occupations..." questions:
 - Include the matching task count and percentage for each occupation
 - Provide examples when available
 
+IMPORTANT: When asked about "specific tasks" or "what tasks" or "task descriptions":
+- Look at the SEMANTIC SEARCH RESULTS section which contains actual task descriptions
+- Each document in the semantic search results represents one task with its full description
+- Extract and list the actual task text from the "Content:" field of each result
+- Include metadata like occupation, industry, and any time/hour information available
+- DO NOT just summarize at the occupation level - show the actual task descriptions
+- If the query asks about time spent, look for hour/time fields in the task metadata
+
 IMPORTANT: When asked about skills or skill diversity:
 - Use the Skill_Count field to identify occupations with diverse skill sets
 - Reference the Extracted_Skills field for specific skill requirements
@@ -90,6 +98,8 @@ Your responses should be:
         # Add semantic search results
         if semantic_results:
             context_parts.append("=== SEMANTIC SEARCH RESULTS ===\n")
+            context_parts.append("Note: Each result represents one task from the dataset\n")
+            
             for i, result in enumerate(semantic_results[:10], 1):
                 score = result.get('score', 0)
                 text = result.get('text', '')[:500]  # Truncate long texts
@@ -100,6 +110,14 @@ Your responses should be:
                     context_parts.append(f"Occupation: {metadata['onet_job_title']}")
                 if metadata.get('industry_title'):
                     context_parts.append(f"Industry: {metadata['industry_title']}")
+                
+                # Highlight time/hours information for task queries
+                if metadata.get('hours_per_week_spent_on_task'):
+                    try:
+                        hours = float(metadata['hours_per_week_spent_on_task'])
+                        context_parts.append(f"⏱️ Time: {hours:.1f} hours per week")
+                    except (ValueError, TypeError):
+                        pass
                 
                 # Add enriched fields if available
                 if metadata.get('industry_canonical'):
@@ -113,7 +131,7 @@ Your responses should be:
                 if metadata.get('wage_band'):
                     context_parts.append(f"Wage Band: {metadata['wage_band']}")
                 
-                context_parts.append(f"Content: {text}\n")
+                context_parts.append(f"Task Description: {text}\n")
         
         # Add computational results
         if computational_results:

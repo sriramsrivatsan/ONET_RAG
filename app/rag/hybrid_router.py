@@ -120,6 +120,14 @@ class HybridQueryRouter:
         elif 'agentic' in query_lower or 'agent' in query_lower:
             params['entity'] = 'ai_agent'
         
+        # Detect task-level queries
+        task_indicators = ['specific tasks', 'what tasks', 'which tasks', 'tasks that', 
+                          'tasks involve', 'task descriptions', 'list of tasks']
+        if any(indicator in query_lower for indicator in task_indicators):
+            params['task_query'] = True
+            # Increase results for better task coverage
+            params['top_n'] = params.get('top_n', 15)
+        
         return params
     
     def determine_execution_strategy(
