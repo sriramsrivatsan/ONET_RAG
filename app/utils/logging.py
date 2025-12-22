@@ -76,13 +76,18 @@ class RAGLogger:
             print(f"[{level}] {message}")
             return
         
+        # Only show UI messages if NOT on landing page and show_ui is True
         if show_ui:
-            if level == 'ERROR':
-                st.error(f"🚨 {message}")
-            elif level == 'WARNING':
-                st.warning(f"⚠️ {message}")
-            elif level == 'INFO':
-                st.info(f"ℹ️ {message}")
+            # Check if we're on the landing page - if so, don't display
+            is_on_landing = st.session_state.get('show_landing', False)
+            
+            if not is_on_landing:
+                if level == 'ERROR':
+                    st.error(f"🚨 {message}")
+                elif level == 'WARNING':
+                    st.warning(f"⚠️ {message}")
+                elif level == 'INFO':
+                    st.info(f"ℹ️ {message}")
     
     def get_ui_logs(self, level: Optional[str] = None) -> list:
         """Get logs for UI display, optionally filtered by level"""

@@ -282,7 +282,31 @@ class AdminView:
         """Render system logs"""
         
         st.subheader("📝 System Logs")
+        st.markdown("View all system events, initialization messages, and operational logs")
         
+        # Get all logs for summary
+        all_logs = logger.get_ui_logs()
+        
+        # Summary stats
+        if all_logs:
+            col1, col2, col3, col4 = st.columns(4)
+            
+            error_count = len([l for l in all_logs if l['level'] == 'ERROR'])
+            warning_count = len([l for l in all_logs if l['level'] == 'WARNING'])
+            info_count = len([l for l in all_logs if l['level'] == 'INFO'])
+            
+            with col1:
+                st.metric("Total Logs", len(all_logs))
+            with col2:
+                st.metric("Errors", error_count, delta=None if error_count == 0 else "⚠️")
+            with col3:
+                st.metric("Warnings", warning_count)
+            with col4:
+                st.metric("Info", info_count)
+            
+            st.markdown("---")
+        
+        # Controls
         col1, col2, col3 = st.columns([2, 2, 1])
         
         with col1:
@@ -295,7 +319,7 @@ class AdminView:
             max_logs = st.slider("Max logs to display", 10, 100, 50)
         
         with col3:
-            if st.button("Clear Logs"):
+            if st.button("🗑️ Clear Logs"):
                 logger.clear_ui_logs()
                 st.rerun()
         
@@ -305,36 +329,42 @@ class AdminView:
         else:
             logs = logger.get_ui_logs(level=log_level)
         
-        # Display logs
-        if logs:
-            logs_to_show = logs[-max_logs:]
-            
-            for log in reversed(logs_to_show):
-                level = log['level']
-                timestamp = log['timestamp']
-                message = log['message']
+        # Display logs in container with better formatting
+        st.markdown("---")
+        st.markdown("**Recent Activity:**")
+        
+        with st.container():
+            if logs:
+                logs_to_show = logs[-max_logs:]
                 
-                if level == 'ERROR':
-                    st.error(f"[{timestamp}] {message}")
-                elif level == 'WARNING':
-                    st.warning(f"[{timestamp}] {message}")
-                elif level == 'INFO':
-                    st.info(f"[{timestamp}] {message}")
-                else:
-                    st.text(f"[{timestamp}] [{level}] {message}")
-        else:
-            st.info("No logs to display")
+                for log in reversed(logs_to_show):
+                    level = log['level']
+                    timestamp = log['timestamp']
+                    message = log['message']
+                    
+                    if level == 'ERROR':
+                        st.error(f"🚨 [{timestamp}] {message}")
+                    elif level == 'WARNING':
+                        st.warning(f"⚠️ [{timestamp}] {message}")
+                    elif level == 'INFO':
+                        st.info(f"ℹ️ [{timestamp}] {message}")
+                    else:
+                        st.text(f"[{timestamp}] [{level}] {message}")
+            else:
+                st.info("No logs to display")
         
         # Download logs
         if logs:
+            st.markdown("---")
             log_text = '\n'.join([
                 f"[{log['timestamp']}] [{log['level']}] {log['message']}"
                 for log in logs
             ])
             
             st.download_button(
-                label="📥 Download Logs",
+                label="📥 Download Complete Logs",
                 data=log_text,
                 file_name=f"labor_rag_logs_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                mime="text/plain"
+                mime="text/plain",
+                use_container_width=True
             )
