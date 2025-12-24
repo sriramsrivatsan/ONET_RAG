@@ -48,8 +48,70 @@ class HybridRetriever:
             'metadata': {}
         }
         
-        # Execute semantic search if needed
-        if strategy['use_vector_search']:
+        # Special handling for document creation task queries
+        # Use pattern matching instead of semantic search for better occupation diversity
+        query_lower = query.lower()
+        is_doc_task_query = (
+            routing_info['params'].get('task_query', False) and
+            any(keyword in query_lower for keyword in ['document', 'digital document', 'create document'])
+        )
+        
+        if is_doc_task_query and self.df is not None:
+            logger.info("Document creation task query detected - using pattern matching for diversity", show_ui=False)
+            
+            # Pattern match on full dataset
+            action_verbs = ['create', 'develop', 'design', 'prepare', 'write', 'produce']
+            object_keywords = ['document', 'report', 'spreadsheet', 'file', 'drawing', 'plan']
+            
+            matching_df = self.df[
+                self.df['Detailed job tasks'].apply(
+                    lambda x: any(verb in str(x).lower() for verb in action_verbs) and 
+                              any(kw in str(x).lower() for kw in object_keywords)
+                )
+            ]
+            
+            logger.info(f"Pattern matching found {len(matching_df)} rows", show_ui=False)
+            
+            # Get diverse sample: max 2 tasks per occupation, prioritize by time
+            task_occ_summary = matching_df.groupby(['Detailed job tasks', 'ONET job title']).agg({
+                'Hours per week spent on task': 'mean',
+                'Industry title': 'nunique',
+                'Employment': 'first'
+            }).reset_index()
+            
+            # Sort by time (desc) to prioritize more time-consuming tasks
+            task_occ_summary = task_occ_summary.sort_values('Hours per week spent on task', ascending=False, na_position='last')
+            
+            # Sample for diversity: max 2 per occupation
+            diverse_tasks = []
+            occ_counts = {}
+            
+            for _, row in task_occ_summary.iterrows():
+                occ = row['ONET job title']
+                if occ_counts.get(occ, 0) < 2:  # Max 2 per occupation
+                    diverse_tasks.append(row)
+                    occ_counts[occ] = occ_counts.get(occ, 0) + 1
+                
+                if len(diverse_tasks) >= 30:
+                    break
+            
+            # Convert to semantic results format
+            for i, row in enumerate(diverse_tasks):
+                results['semantic_results'].append({
+                    'text': row['Detailed job tasks'],
+                    'score': 1.0 - (i * 0.01),
+                    'metadata': {
+                        'onet_job_title': row['ONET job title'],
+                        'hours_per_week_spent_on_task': row['Hours per week spent on task'],
+                        'industry_count': row['Industry title'],
+                        'employment': row['Employment']
+                    }
+                })
+            
+            logger.info(f"Created {len(results['semantic_results'])} diverse results from {len(occ_counts)} occupations", show_ui=False)
+            
+        # Execute semantic search if needed and not using pattern matching
+        elif strategy['use_vector_search']:
             semantic_results = self._semantic_retrieval(
                 query,
                 k=strategy.get('k_results', k),
