@@ -50,6 +50,14 @@ IMPORTANT: When asked about employment or "total workers":
 - Always specify the number of occupations included in the total
 - Do NOT sum employment at the task level - this produces incorrect results
 
+CRITICAL: When asked for "TOTAL employment" or "What's the total":
+- The user wants the AGGREGATED TOTAL across all occupations
+- DO NOT show a breakdown by occupation or industry unless explicitly asked
+- Format: "Total Employment: X thousand workers across Y occupations"
+- Example: "Total Employment: 1,028.93 thousand workers (approximately 1.03 million) across 14 occupations"
+- Only show breakdown if query specifically asks "by occupation" or "by industry"
+- If query just asks for "total", give the single aggregated number
+
 IMPORTANT: When asked "What jobs..." or "Which occupations..." questions:
 - If you see "OCCUPATION PATTERN MATCHING ANALYSIS" in the context, list ALL occupations shown
 - DO NOT just pick the first occupation - list at least the top 10-15 as ranked
@@ -144,6 +152,12 @@ CRITICAL RULES:
   - DO NOT just list tasks from semantic search
   - If computational analysis not provided, explain that proportion calculation requires aggregation
   - Request: "To calculate industry proportions, I need aggregated employment data by industry"
+- CRITICAL FOR TOTAL EMPLOYMENT QUERIES: When query asks "What's the total" or "total employment"
+  - Give the SINGLE AGGREGATED NUMBER from "TOTAL EMPLOYMENT (AGGREGATED)"
+  - DO NOT show occupation breakdown or industry breakdown unless explicitly requested
+  - DO NOT create a table unless query specifically asks for breakdown "by occupation" or "by industry"
+  - Format: "Total Employment: X thousand workers (approximately Y million) across Z occupations"
+  - The occupation/industry breakdown is OPTIONAL - only show if user asks for it
 
 Your responses should be:
 - Accurate and grounded in data
@@ -467,14 +481,18 @@ Your responses should be:
                     total_emp = float(emp_data['total_employment']) if emp_data.get('total_employment') else 0.0
                     occ_count = int(emp_data.get('occupations_count', 0))
                     
-                    context_parts.append(f"\nTotal Employment: {total_emp:.2f}")
-                    context_parts.append(f"Number of Occupations: {occ_count}")
-                    context_parts.append(f"Note: {emp_data.get('note', '')}")
+                    context_parts.append(f"\n⭐ TOTAL EMPLOYMENT (AGGREGATED): {total_emp:.2f} thousand workers")
+                    context_parts.append(f"   Equivalent to: {total_emp * 1000:,.0f} workers")
+                    context_parts.append(f"   Across {occ_count} occupations")
+                    context_parts.append(f"\n📌 NOTE: Use this TOTAL value when asked for 'total employment'")
+                    context_parts.append(f"   DO NOT show the occupation breakdown unless specifically requested")
+                    context_parts.append(f"\nNote: {emp_data.get('note', '')}")
                     
                     # Employment by occupation with defensive float conversion
                     per_occ = emp_data.get('per_occupation', {})
                     if per_occ:
-                        context_parts.append(f"\nEmployment by Occupation:")
+                        context_parts.append(f"\n[OPTIONAL BREAKDOWN - Only show if query asks 'by occupation':]")
+                        context_parts.append(f"Employment by Occupation:")
                         
                         # Convert all values to float defensively
                         per_occ_floats = {}
