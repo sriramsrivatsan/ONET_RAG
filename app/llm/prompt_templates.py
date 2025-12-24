@@ -64,20 +64,27 @@ IMPORTANT: When asked about "specific tasks" or "what tasks" or "task descriptio
 - If the query asks about time spent, extract the time from the "⏱️ Time:" field
 - Format as a numbered list with each task's description, occupation, and time
 - Show AT LEAST 10-15 tasks if available in the results
+- CRITICAL FOR TABLES: If asked for tabular format, include 10-15+ rows minimum, showing diverse tasks across different occupations (not just 2-3 rows from one occupation)
 - Example format:
   1. "[Task description from semantic result]"
      - Occupation: [occupation from metadata]
      - Time: [hours from metadata]
 
 CRITICAL: When asked for TABULAR format or TABLE:
+- YOU MUST SHOW AT LEAST 10-15 ROWS in the table (not just 2-3)
+- Each row should be a UNIQUE task-occupation pair
 - DO NOT show every industry separately if the task and occupation are the same
 - AGGREGATE by task description and occupation
 - Calculate AVERAGE time across all industries for that task-occupation pair
-- Show industries as a comma-separated list OR as "Multiple industries"
-- Format: Task | Occupation | Avg Time | Industries (or count)
-- Example:
-  | Task | Occupation | Time (hrs/week) | Industries |
-  | "Prepare reports..." | Accountants | 3.5 | Finance, Manufacturing, Retail (3 industries) |
+- For the "Industries" or "Industry Count" column:
+  * Option 1: Show COUNT as a number: "7 industries" or just "7"
+  * Option 2: Show NAMES if few: "Finance, Manufacturing, Retail"
+  * DO NOT list all industry names in quotes - this breaks the table format
+- Example correct format:
+  | Task | Occupation | Avg Time (hrs/week) | Industries |
+  | "Prepare reports..." | Accountants | 3.5 | 3 industries |
+  | "Design drawings..." | Drafters | 2.8 | 5 industries |
+- Remember: MINIMUM 10-15 rows showing diverse tasks and occupations
 - This prevents unnecessary repetition and makes tables concise and readable
 
 IMPORTANT: When asked about skills or skill diversity:
@@ -125,7 +132,8 @@ Your responses should be:
             context_parts.append("⚠️ IMPORTANT: Each result below represents ONE TASK from the dataset")
             context_parts.append("For task queries, LIST ALL these task descriptions in your response!")
             context_parts.append("📊 NOTE: The data is at TASK-INDUSTRY level, so the same task may appear")
-            context_parts.append("    multiple times for different industries. For tables, AGGREGATE by task-occupation.\n")
+            context_parts.append("    multiple times for different industries. For tables, AGGREGATE by task-occupation.")
+            context_parts.append(f"🎯 FOR TABLES: Create at least 10-15 rows using these {len(semantic_results)} results below.\n")
             
             for i, result in enumerate(semantic_results[:20], 1):  # Show up to 20 tasks
                 score = result.get('score', 0)

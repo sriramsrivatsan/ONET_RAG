@@ -137,8 +137,8 @@ class HybridQueryRouter:
                           'tasks involve', 'task descriptions', 'list of tasks']
         if any(indicator in query_lower for indicator in task_indicators):
             params['task_query'] = True
-            # Increase results for better task coverage
-            params['top_n'] = params.get('top_n', 15)
+            # Increase results for better task coverage - use 20 to ensure diversity
+            params['top_n'] = 20
         
         return params
     
