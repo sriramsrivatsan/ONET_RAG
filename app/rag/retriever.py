@@ -230,9 +230,11 @@ class HybridRetriever:
                         
                         try:
                             # Get employment for matching occupations only
+                            # Use .max() to get the highest employment value per occupation
+                            # (represents the occupation's total employment across industries)
                             matching_occ_employment = self.df[
                                 self.df['ONET job title'].isin(matching_occupations)
-                            ].groupby('ONET job title')['Employment'].first()
+                            ].groupby('ONET job title')['Employment'].max()
                             
                             # Ensure we have valid data
                             if len(matching_occ_employment) > 0:
@@ -297,9 +299,10 @@ class HybridRetriever:
             
             if 'ONET job title' in df.columns:
                 try:
-                    # Get unique employment per occupation (take first value for each occupation)
-                    # This represents the actual occupation-level employment
-                    unique_employment_per_occ = df.groupby('ONET job title')['Employment'].first()
+                    # Get maximum employment per occupation (represents total occupation employment)
+                    # Use .max() because employment data is split by industry,
+                    # and the max value represents the occupation's total employment
+                    unique_employment_per_occ = df.groupby('ONET job title')['Employment'].max()
                     
                     # Ensure proper float conversion
                     total_emp = float(unique_employment_per_occ.sum())
