@@ -45,7 +45,9 @@ class Config:
         'count', 'total', 'how many', 'sum', 'average', 'top', 'rank',
         'percentage', 'proportion', 'compare', 'most', 'least', 'group by',
         'what jobs', 'which jobs', 'what occupations', 'which occupations',
-        'list jobs', 'list occupations', 'jobs that', 'occupations that'
+        'list jobs', 'list occupations', 'jobs that', 'occupations that',
+        'rich in', 'high proportion', 'highest proportion', 'most common',
+        'which industries', 'what industries have'
     ]
     
     SEMANTIC_KEYWORDS = [

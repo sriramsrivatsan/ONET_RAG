@@ -120,6 +120,20 @@ class HybridQueryRouter:
         elif 'by occupation' in query_lower or 'per occupation' in query_lower:
             params['group_by'] = 'occupation'
         
+        # Detect industry ranking/proportion queries
+        industry_ranking_indicators = [
+            'what industries', 'which industries', 'industries that', 
+            'rich in', 'high proportion', 'highest proportion', 'most common in'
+        ]
+        if any(indicator in query_lower for indicator in industry_ranking_indicators):
+            if 'proportion' in query_lower or 'percentage' in query_lower or 'rich in' in query_lower:
+                params['industry_ranking'] = True
+                params['aggregation'] = 'percentage'
+                params['group_by'] = 'industry'
+                # Don't treat as task query even if tasks mentioned
+                if 'task_query' in params:
+                    del params['task_query']
+        
         # Check for CSV export request
         if 'csv' in query_lower or 'export' in query_lower or 'download' in query_lower:
             params['export_csv'] = True

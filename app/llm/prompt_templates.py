@@ -34,10 +34,13 @@ DATASET STRUCTURE:
 - Each row represents ONE TASK for an occupation
 - To count tasks per occupation, count the number of rows for that occupation
 - The "Task Count Analysis" section provides this information when available
-- **EMPLOYMENT DATA**: The Employment column contains values at the TASK level, not occupation level
-  - Different tasks within the same occupation have different employment values
-  - To get total employment for occupations, aggregate by occupation first (take unique value per occupation)
-  - Employment values appear to be in thousands (e.g., 31.17 = 31,170 workers)
+- **EMPLOYMENT DATA**: The Employment column contains values at the TASK-INDUSTRY level
+  - Each occupation appears in multiple industries with DIFFERENT employment values
+  - Example: Architects in Professional Services (105k) vs Construction (5.4k) vs Retail (0.13k)
+  - For total employment by occupation: use the maximum value across industries
+  - For employment BY INDUSTRY: use the industry-specific value from that industry's rows
+  - When asked for "by occupation AND industry", show EACH industry's specific employment value
+  - DO NOT use the max/total value for all industries - this is incorrect!
 
 IMPORTANT: When asked about employment or "total workers":
 - Use the "EMPLOYMENT FOR MATCHING OCCUPATIONS" section if available
@@ -87,6 +90,32 @@ CRITICAL: When asked for TABULAR format or TABLE:
 - Remember: MINIMUM 10-15 rows showing diverse tasks and occupations
 - This prevents unnecessary repetition and makes tables concise and readable
 
+CRITICAL: When asked for "by occupation AND industry" or "by industry and occupation":
+- DO NOT aggregate to occupation level - show INDUSTRY-SPECIFIC values
+- Each occupation-industry pair should have its OWN employment value
+- DO NOT repeat the same value for all industries of an occupation
+- Example WRONG: Architects | All Industries | 105.12 (repeated)
+- Example CORRECT: 
+  * Architects | Professional Services | 105.12
+  * Architects | Wholesale Trade | 9.09
+  * Architects | Construction | 5.41
+- The employment values should be DIFFERENT for each industry
+- Extract industry-specific employment from the semantic search metadata
+- Look at the "Industry" and "Employment" fields in each result
+
+IMPORTANT: When asked about "what industries" or "which industries" with proportion/percentage:
+- This is an INDUSTRY-LEVEL analysis, not a task-level listing
+- DO NOT show individual task descriptions
+- DO NOT list tasks from one occupation across industries
+- INSTEAD: Show a ranked table of INDUSTRIES
+- Calculate: (workers with attribute in industry) / (total workers in industry)
+- Rank industries by this proportion/percentage
+- Format as:
+  | Industry | Workers with Attribute | Total Workers | Percentage |
+  | Professional Services | 389.7k | 582.4k | 66.9% |
+- Focus on INDUSTRY as the unit of analysis, not tasks or occupations
+- If computational results not available, explain that proportion calculation requires aggregation
+
 IMPORTANT: When asked about skills or skill diversity:
 - Use the Skill_Count field to identify occupations with diverse skill sets
 - Reference the Extracted_Skills field for specific skill requirements
@@ -110,6 +139,11 @@ CRITICAL RULES:
   - DO NOT show the same task-occupation multiple times with different industries
   - Calculate average time across industries for that task-occupation pair
   - This prevents repetitive tables and makes data more readable
+- CRITICAL FOR PROPORTION/RANKING QUERIES: When asked "which industries have high proportion" or "industries rich in X"
+  - This requires COMPUTATIONAL analysis at the INDUSTRY level
+  - DO NOT just list tasks from semantic search
+  - If computational analysis not provided, explain that proportion calculation requires aggregation
+  - Request: "To calculate industry proportions, I need aggregated employment data by industry"
 
 Your responses should be:
 - Accurate and grounded in data
@@ -133,6 +167,8 @@ Your responses should be:
             context_parts.append("For task queries, LIST ALL these task descriptions in your response!")
             context_parts.append("📊 NOTE: The data is at TASK-INDUSTRY level, so the same task may appear")
             context_parts.append("    multiple times for different industries. For tables, AGGREGATE by task-occupation.")
+            context_parts.append("💼 EMPLOYMENT: Each result has industry-specific employment values.")
+            context_parts.append("    For 'by industry' queries, use these specific values (not aggregated max).")
             context_parts.append(f"🎯 FOR TABLES: Create at least 10-15 rows using these {len(semantic_results)} results below.\n")
             
             for i, result in enumerate(semantic_results[:20], 1):  # Show up to 20 tasks
@@ -151,6 +187,14 @@ Your responses should be:
                     try:
                         hours = float(metadata['hours_per_week_spent_on_task'])
                         context_parts.append(f"⏱️ Time: {hours:.1f} hours per week")
+                    except (ValueError, TypeError):
+                        pass
+                
+                # Show employment for industry-level queries
+                if metadata.get('employment'):
+                    try:
+                        emp = float(metadata['employment'])
+                        context_parts.append(f"💼 Employment: {emp:.2f} thousand workers (industry-specific)")
                     except (ValueError, TypeError):
                         pass
                 
