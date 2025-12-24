@@ -147,6 +147,25 @@ class HybridRetriever:
         if agg_type == 'percentage':
             computational_results['percentages'] = self._compute_percentages(df_subset, params)
         
+        # Special handling for industry proportion/ranking queries
+        if params.get('industry_ranking'):
+            logger.info("Industry ranking query detected - computing proportions", show_ui=False)
+            
+            # Determine what attribute we're measuring
+            attribute_name = "workers matching criteria"
+            if 'digital document' in query.lower():
+                attribute_name = "digital document workers"
+            elif 'customer service' in query.lower():
+                attribute_name = "customer service workers"
+            elif params.get('entity'):
+                attribute_name = f"{params['entity']} workers"
+            
+            # Compute industry proportions
+            industry_prop_results = self._compute_industry_proportions(df_subset, attribute_name)
+            if industry_prop_results:
+                computational_results['industry_proportions'] = industry_prop_results
+                logger.info(f"Industry proportions computed successfully", show_ui=False)
+        
         # Group by if specified
         if params.get('group_by'):
             computational_results['grouped'] = self._compute_grouped(
@@ -368,6 +387,97 @@ class HybridRetriever:
             percentages['percentage_of_dataset'] = (filtered_rows / total_rows) * 100
         
         return percentages
+    
+    def _compute_industry_proportions(
+        self,
+        matching_df: pd.DataFrame,
+        attribute_name: str = "matching criteria"
+    ) -> Dict[str, Any]:
+        """
+        Calculate what proportion of each industry's workforce matches the criteria
+        
+        Args:
+            matching_df: Dataframe filtered to only matching rows
+            attribute_name: Description of what we're measuring (for display)
+        
+        Returns:
+            Dict with industry proportions, ranked by percentage
+        """
+        logger.info(f"Computing industry proportions for: {attribute_name}", show_ui=False)
+        
+        if self.df is None or matching_df is None:
+            logger.warning("Missing dataframe for industry proportion calculation", show_ui=False)
+            return {}
+        
+        if 'Industry title' not in self.df.columns or 'ONET job title' not in self.df.columns:
+            logger.warning("Missing required columns for industry proportion calculation", show_ui=False)
+            return {}
+        
+        if 'Employment' not in self.df.columns:
+            logger.warning("Missing Employment column for industry proportion calculation", show_ui=False)
+            return {}
+        
+        try:
+            industry_proportions = []
+            
+            # Get all unique industries
+            all_industries = self.df['Industry title'].unique()
+            
+            for industry in all_industries:
+                # Get total employment in this industry
+                # For each occupation in this industry, take max employment (occupation total)
+                industry_data = self.df[self.df['Industry title'] == industry]
+                
+                if len(industry_data) == 0:
+                    continue
+                
+                # Calculate total employment: sum of max employment per occupation
+                total_employment = industry_data.groupby('ONET job title')['Employment'].max().sum()
+                
+                # Get matching employment in this industry
+                matching_industry_data = matching_df[matching_df['Industry title'] == industry]
+                
+                if len(matching_industry_data) == 0:
+                    # Industry exists but has no matching workers
+                    matching_employment = 0.0
+                else:
+                    # Calculate matching employment: sum of max employment per occupation
+                    matching_employment = matching_industry_data.groupby('ONET job title')['Employment'].max().sum()
+                
+                # Calculate proportion
+                if total_employment > 0:
+                    proportion = (matching_employment / total_employment) * 100
+                else:
+                    proportion = 0.0
+                
+                industry_proportions.append({
+                    'industry': str(industry),
+                    'matching_employment': float(matching_employment),
+                    'total_employment': float(total_employment),
+                    'proportion': float(proportion)
+                })
+            
+            # Sort by proportion descending
+            industry_proportions.sort(key=lambda x: x['proportion'], reverse=True)
+            
+            results = {
+                'industry_proportions': industry_proportions,
+                'attribute_name': attribute_name,
+                'total_industries': len(industry_proportions),
+                'industries_with_matches': sum(1 for ip in industry_proportions if ip['matching_employment'] > 0)
+            }
+            
+            logger.info(
+                f"Industry proportion analysis complete: {results['total_industries']} industries, "
+                f"{results['industries_with_matches']} with matches",
+                show_ui=False
+            )
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error computing industry proportions: {str(e)}", show_ui=False)
+            return {}
     
     def _compute_grouped(
         self,

@@ -282,6 +282,48 @@ Your responses should be:
                     for name, val in values.items():
                         context_parts.append(f"  - {name}: {val:,.2f}")
             
+            # Industry Proportions (for "rich in X" / "high proportion" queries)
+            if 'industry_proportions' in computational_results:
+                prop_data = computational_results['industry_proportions']
+                
+                context_parts.append("\n=== INDUSTRY PROPORTION ANALYSIS ===")
+                context_parts.append(f"📊 Analysis: Which industries have the highest proportion of {prop_data.get('attribute_name', 'matching workers')}")
+                context_parts.append(f"\nTotal industries analyzed: {prop_data.get('total_industries', 0)}")
+                context_parts.append(f"Industries with matches: {prop_data.get('industries_with_matches', 0)}")
+                
+                context_parts.append("\n🏆 INDUSTRIES RANKED BY PROPORTION:")
+                context_parts.append("(Showing percentage of industry workforce with this attribute)\n")
+                
+                industry_list = prop_data.get('industry_proportions', [])
+                
+                # Show top 15 industries
+                for i, industry_info in enumerate(industry_list[:15], 1):
+                    industry = industry_info.get('industry', 'Unknown')
+                    matching = industry_info.get('matching_employment', 0)
+                    total = industry_info.get('total_employment', 0)
+                    proportion = industry_info.get('proportion', 0)
+                    
+                    context_parts.append(
+                        f"{i}. {industry}"
+                    )
+                    context_parts.append(
+                        f"   - Matching workers: {matching:,.2f} thousand"
+                    )
+                    context_parts.append(
+                        f"   - Total industry employment: {total:,.2f} thousand"
+                    )
+                    context_parts.append(
+                        f"   - Proportion: {proportion:.1f}%"
+                    )
+                
+                context_parts.append("\n⚠️ IMPORTANT FOR YOUR RESPONSE:")
+                context_parts.append("- Present this as a RANKED TABLE of industries")
+                context_parts.append("- Show: Industry | Matching Workers | Total Workers | Percentage")
+                context_parts.append("- Order by percentage (highest to lowest)")
+                context_parts.append("- Include at least top 10 industries")
+                context_parts.append("- DO NOT show individual task descriptions")
+                context_parts.append("- This is INDUSTRY-LEVEL analysis, not task-level")
+            
             # Skill Analysis (from data dictionary enrichment)
             if 'skill_analysis' in computational_results:
                 context_parts.append("\n=== SKILL DIVERSITY ANALYSIS (from Data Dictionary) ===")
