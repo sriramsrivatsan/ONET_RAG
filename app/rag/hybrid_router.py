@@ -50,11 +50,21 @@ class HybridQueryRouter:
                           'tasks involve', 'task descriptions', 'list of tasks', 'list tasks']
         is_task_query = any(indicator in query_lower for indicator in task_indicators)
         
+        # Detect occupation/job queries (different from task queries)
+        occupation_indicators = ['what jobs', 'which jobs', 'what occupations', 'which occupations',
+                                'jobs that', 'occupations that', 'jobs likely', 'occupations require']
+        is_occupation_query = any(indicator in query_lower for indicator in occupation_indicators)
+        
         if is_task_query:
             intent = QueryIntent.SEMANTIC
             params['task_query'] = True
             params['top_n'] = 30  # Get more results for better occupation diversity
             logger.info(f"Detected TASK QUERY - forcing SEMANTIC intent with k=30", show_ui=False)
+        elif is_occupation_query:
+            # Occupation queries should use pattern matching + computational analysis
+            intent = QueryIntent.HYBRID
+            params['occupation_query'] = True
+            logger.info(f"Detected OCCUPATION QUERY - using HYBRID intent", show_ui=False)
         else:
             # Classify intent normally for non-task queries
             if comp_matches > 0 and sem_matches > 0:

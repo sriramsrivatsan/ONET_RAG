@@ -65,6 +65,30 @@ IMPORTANT: When asked "What jobs..." or "Which occupations..." questions:
 - Include the matching task count and percentage for each occupation
 - Provide examples when available
 
+CRITICAL: Distinguish between OCCUPATION queries vs TASK queries:
+- "What JOBS create documents?" → Show OCCUPATION LIST with employment and task counts
+- "What TASKS create documents?" → Show TASK TABLE with descriptions and time
+
+For OCCUPATION queries (What jobs/occupations):
+- Format: List or table of OCCUPATIONS (not individual tasks)
+- Include: Occupation name, Employment, Number of matching tasks, Example task (optional)
+- DO NOT show individual task descriptions with time - that's for task queries
+- Example format:
+  1. Accountants and Auditors
+     - Employment: 521.96 thousand workers
+     - Matching tasks: 6 tasks involving document creation
+     - Example: "Prepare detailed reports on audit findings"
+  
+  OR as table:
+  | Occupation | Employment (k) | Matching Tasks | Example Task |
+  | Accountants | 521.96 | 6 | Prepare audit reports |
+  
+For TASK queries (What tasks/specific tasks):
+- Format: Table of TASKS with descriptions, occupation, time, industries
+- Show 10-15+ individual task descriptions
+- Include time per task and industry count
+- Ensure diversity across occupations (5-10+)
+
 IMPORTANT: When asked about "specific tasks" or "what tasks" or "task descriptions":
 - Look at the SEMANTIC SEARCH RESULTS section which contains actual task descriptions
 - Each document in the semantic search results represents one task with its full description
@@ -92,16 +116,24 @@ CRITICAL: When asked for TABULAR format or TABLE:
 - DO NOT show every industry separately if the task and occupation are the same
 - AGGREGATE by task description and occupation
 - Calculate AVERAGE time across all industries for that task-occupation pair
+- **CRITICAL: Each row should have DIFFERENT time and industry count values**
+- **DO NOT use the same value (e.g., 2.5 hrs or 10 industries) for all rows**
+- Calculate SEPARATELY for each task-occupation pair from the semantic results
 - For the "Industries" or "Industry Count" column:
   * Option 1: Show COUNT as a number: "7 industries" or just "7"
   * Option 2: Show NAMES if few: "Finance, Manufacturing, Retail"
   * DO NOT list all industry names in quotes - this breaks the table format
+  * Count how many DIFFERENT industries this specific task-occupation appears in
 - Example correct format:
   | Task | Occupation | Avg Time (hrs/week) | Industries |
-  | "Prepare reports..." | Accountants | 3.5 | 3 industries |
-  | "Design drawings..." | Drafters | 2.8 | 5 industries |
-  | "Analyze data..." | Actuaries | 4.0 | 2 industries |
-  | "Write specifications..." | Engineers | 3.2 | 7 industries |
+  | "Prepare reports..." | Accountants | 3.0 | 20 |
+  | "Design drawings..." | Drafters | 4.0 | 15 |
+  | "Analyze data..." | Actuaries | 4.0 | 9 |
+  | "Write specifications..." | Engineers | 2.5 | 8 |
+  | "Create plans..." | Architects | 1.5 | 15 |
+  | "Review documents..." | Managers | 5.0 | 7 |
+- Notice: Each row has DIFFERENT time values and DIFFERENT industry counts
+- **DO NOT calculate one average for all rows - calculate separately for each!**
 - Remember: MINIMUM 10-15 rows showing diverse tasks and occupations
 - This prevents unnecessary repetition and makes tables concise and readable
 
@@ -191,7 +223,13 @@ Your responses should be:
             context_parts.append("💼 EMPLOYMENT: Each result has industry-specific employment values.")
             context_parts.append("    For 'by industry' queries, use these specific values (not aggregated max).")
             context_parts.append(f"🎯 FOR TABLES: Create at least 10-15 rows using these {len(semantic_results)} results below.")
-            context_parts.append("🌟 DIVERSITY: Show tasks from AT LEAST 5-10 DIFFERENT occupations (not all from one).\n")
+            context_parts.append("🌟 DIVERSITY: Show tasks from AT LEAST 5-10 DIFFERENT occupations (not all from one).")
+            context_parts.append("⏱️ TIME VALUES: Each result has its own ⏱️ Time value. When aggregating:")
+            context_parts.append("   - Group results by task description + occupation")
+            context_parts.append("   - Calculate AVERAGE time for that task-occupation pair")
+            context_parts.append("   - Count DISTINCT industries for that task-occupation pair")
+            context_parts.append("   - Result: Each table row has DIFFERENT time and industry count")
+            context_parts.append("   - DO NOT use same value (e.g., 2.5 hrs or 10 industries) for all rows\n")
             
             for i, result in enumerate(semantic_results[:30], 1):  # Show up to 30 tasks for diversity
                 score = result.get('score', 0)
