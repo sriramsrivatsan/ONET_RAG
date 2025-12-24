@@ -53,8 +53,8 @@ class HybridQueryRouter:
         if is_task_query:
             intent = QueryIntent.SEMANTIC
             params['task_query'] = True
-            params['top_n'] = 20  # Get more results for task queries
-            logger.info(f"Detected TASK QUERY - forcing SEMANTIC intent with k=20", show_ui=False)
+            params['top_n'] = 30  # Get more results for better occupation diversity
+            logger.info(f"Detected TASK QUERY - forcing SEMANTIC intent with k=30", show_ui=False)
         else:
             # Classify intent normally for non-task queries
             if comp_matches > 0 and sem_matches > 0:
@@ -151,8 +151,8 @@ class HybridQueryRouter:
                           'tasks involve', 'task descriptions', 'list of tasks']
         if any(indicator in query_lower for indicator in task_indicators):
             params['task_query'] = True
-            # Increase results for better task coverage - use 20 to ensure diversity
-            params['top_n'] = 20
+            # Increase results to 30 for better occupation diversity
+            params['top_n'] = 30
         
         return params
     

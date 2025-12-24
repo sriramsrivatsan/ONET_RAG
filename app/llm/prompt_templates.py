@@ -75,6 +75,8 @@ IMPORTANT: When asked about "specific tasks" or "what tasks" or "task descriptio
 - If the query asks about time spent, extract the time from the "⏱️ Time:" field
 - Format as a numbered list with each task's description, occupation, and time
 - Show AT LEAST 10-15 tasks if available in the results
+- **CRITICAL: Ensure DIVERSITY across occupations - show tasks from at least 5-10 different occupations**
+- **DO NOT show 10+ tasks all from the same occupation - spread them out**
 - CRITICAL FOR TABLES: If asked for tabular format, include 10-15+ rows minimum, showing diverse tasks across different occupations (not just 2-3 rows from one occupation)
 - Example format:
   1. "[Task description from semantic result]"
@@ -84,6 +86,9 @@ IMPORTANT: When asked about "specific tasks" or "what tasks" or "task descriptio
 CRITICAL: When asked for TABULAR format or TABLE:
 - YOU MUST SHOW AT LEAST 10-15 ROWS in the table (not just 2-3)
 - Each row should be a UNIQUE task-occupation pair
+- **CRITICAL: Show tasks from AT LEAST 5-10 DIFFERENT OCCUPATIONS**
+- **DO NOT show more than 2-3 tasks from the same occupation**
+- This ensures diversity and comprehensive coverage
 - DO NOT show every industry separately if the task and occupation are the same
 - AGGREGATE by task description and occupation
 - Calculate AVERAGE time across all industries for that task-occupation pair
@@ -95,6 +100,8 @@ CRITICAL: When asked for TABULAR format or TABLE:
   | Task | Occupation | Avg Time (hrs/week) | Industries |
   | "Prepare reports..." | Accountants | 3.5 | 3 industries |
   | "Design drawings..." | Drafters | 2.8 | 5 industries |
+  | "Analyze data..." | Actuaries | 4.0 | 2 industries |
+  | "Write specifications..." | Engineers | 3.2 | 7 industries |
 - Remember: MINIMUM 10-15 rows showing diverse tasks and occupations
 - This prevents unnecessary repetition and makes tables concise and readable
 
@@ -183,9 +190,10 @@ Your responses should be:
             context_parts.append("    multiple times for different industries. For tables, AGGREGATE by task-occupation.")
             context_parts.append("💼 EMPLOYMENT: Each result has industry-specific employment values.")
             context_parts.append("    For 'by industry' queries, use these specific values (not aggregated max).")
-            context_parts.append(f"🎯 FOR TABLES: Create at least 10-15 rows using these {len(semantic_results)} results below.\n")
+            context_parts.append(f"🎯 FOR TABLES: Create at least 10-15 rows using these {len(semantic_results)} results below.")
+            context_parts.append("🌟 DIVERSITY: Show tasks from AT LEAST 5-10 DIFFERENT occupations (not all from one).\n")
             
-            for i, result in enumerate(semantic_results[:20], 1):  # Show up to 20 tasks
+            for i, result in enumerate(semantic_results[:30], 1):  # Show up to 30 tasks for diversity
                 score = result.get('score', 0)
                 text = result.get('text', '')[:500]  # Truncate long texts
                 metadata = result.get('metadata', {})
