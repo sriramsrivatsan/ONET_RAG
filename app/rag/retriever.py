@@ -153,15 +153,44 @@ class HybridRetriever:
             
             # Determine what attribute we're measuring
             attribute_name = "workers matching criteria"
+            pattern_df = None
+            
             if 'digital document' in query.lower():
                 attribute_name = "digital document workers"
+                # Pattern match for document creation on FULL dataset
+                logger.info("Pattern matching for digital documents on full dataset", show_ui=False)
+                action_verbs = ['create', 'develop', 'design', 'prepare', 'write', 'produce']
+                object_keywords = ['document', 'report', 'spreadsheet', 'file', 'drawing', 'plan']
+                
+                pattern_df = self.df[
+                    self.df['Detailed job tasks'].apply(
+                        lambda x: any(verb in str(x).lower() for verb in action_verbs) and 
+                                  any(kw in str(x).lower() for kw in object_keywords)
+                    )
+                ]
+                logger.info(f"Pattern matching found {len(pattern_df)} rows (of {len(self.df)} total)", show_ui=False)
+                
             elif 'customer service' in query.lower():
                 attribute_name = "customer service workers"
+                # Pattern match for customer service tasks
+                logger.info("Pattern matching for customer service on full dataset", show_ui=False)
+                service_keywords = ['customer', 'client', 'service', 'support', 'assist']
+                
+                pattern_df = self.df[
+                    self.df['Detailed job tasks'].apply(
+                        lambda x: any(kw in str(x).lower() for kw in service_keywords)
+                    )
+                ]
+                logger.info(f"Pattern matching found {len(pattern_df)} rows (of {len(self.df)} total)", show_ui=False)
+                
             elif params.get('entity'):
                 attribute_name = f"{params['entity']} workers"
             
-            # Compute industry proportions
-            industry_prop_results = self._compute_industry_proportions(df_subset, attribute_name)
+            # Use pattern-matched data if available, otherwise use semantic results
+            df_for_proportions = pattern_df if pattern_df is not None else df_subset
+            
+            # Compute industry proportions on ALL matching data (not just semantic results)
+            industry_prop_results = self._compute_industry_proportions(df_for_proportions, attribute_name)
             if industry_prop_results:
                 computational_results['industry_proportions'] = industry_prop_results
                 logger.info(f"Industry proportions computed successfully", show_ui=False)
