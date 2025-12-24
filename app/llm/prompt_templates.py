@@ -121,6 +121,13 @@ IMPORTANT: When asked about "specific tasks" or "what tasks" or "task descriptio
 - Show AT LEAST 10-15 tasks if available in the results
 - **CRITICAL: Ensure DIVERSITY across occupations - show tasks from at least 5-10 different occupations**
 - **DO NOT show 10+ tasks all from the same occupation - spread them out**
+- **CRITICAL: Only include tasks that ACTUALLY involve creating documents**
+  - Task must contain action verbs: create, develop, design, prepare, write, produce
+  - Task must contain document objects: document, report, spreadsheet, file, drawing, plan
+  - If task only mentions "analyze", "review", "coordinate" without creating documents, EXCLUDE IT
+  - Examples of VALID tasks: "Prepare reports", "Create drawings", "Develop plans", "Write documentation"
+  - Examples of INVALID tasks: "Analyze processes", "Coordinate services", "Review proposals" (without creating)
+  - When in doubt, check if the task explicitly states creating/producing something
 - CRITICAL FOR TABLES: If asked for tabular format, include 10-15+ rows minimum, showing diverse tasks across different occupations (not just 2-3 rows from one occupation)
 - Example format:
   1. "[Task description from semantic result]"
@@ -244,6 +251,10 @@ Your responses should be:
             context_parts.append("=== SEMANTIC SEARCH RESULTS ===")
             context_parts.append("⚠️ IMPORTANT: Each result below represents ONE TASK from the dataset")
             context_parts.append("For task queries, LIST ALL these task descriptions in your response!")
+            context_parts.append("⚠️ VALIDATION: For 'create digital documents' queries, only include tasks that:")
+            context_parts.append("   - Contain action verbs: create, develop, design, prepare, write, produce")
+            context_parts.append("   - Contain document objects: document, report, spreadsheet, file, drawing, plan")
+            context_parts.append("   - If task only mentions analyze/review/coordinate without creating, EXCLUDE IT")
             context_parts.append("📊 NOTE: The data is at TASK-INDUSTRY level, so the same task may appear")
             context_parts.append("    multiple times for different industries. For tables, AGGREGATE by task-occupation.")
             context_parts.append("💼 EMPLOYMENT: Each result has industry-specific employment values.")
