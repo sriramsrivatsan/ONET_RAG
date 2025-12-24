@@ -89,6 +89,26 @@ For TASK queries (What tasks/specific tasks):
 - Include time per task and industry count
 - Ensure diversity across occupations (5-10+)
 
+For BREAKDOWN BY INDUSTRY AND OCCUPATION queries:
+- This requires showing ALL occupation-industry combinations
+- DO NOT show only one occupation (e.g., only Architects)
+- Include ALL occupations present: Accountants, Engineers, Architects, Drafters, Managers, etc.
+- For each Industry-Occupation pair, show:
+  * Industry name
+  * Occupation name
+  * Employment in that specific industry-occupation combination
+  * Percentage: (this combination's employment) / (total industry employment) * 100
+- Show at least 20-30 rows covering major combinations
+- Example:
+  | Industry | Occupation | Employment (k) | % of Industry |
+  | Professional Services | Accountants | 521.96 | 53.8% |
+  | Finance | Accountants | 127.41 | 67.1% |
+  | Manufacturing | Automotive Engineers | 121.95 | 33.0% |
+  | Professional Services | Architects | 105.12 | 10.8% |
+  | Government | Accountants | 126.27 | 56.1% |
+  ... (continue with more combinations)
+- Notice: Multiple occupations shown, not just one
+
 IMPORTANT: When asked about "specific tasks" or "what tasks" or "task descriptions":
 - Look at the SEMANTIC SEARCH RESULTS section which contains actual task descriptions
 - Each document in the semantic search results represents one task with its full description
@@ -197,6 +217,12 @@ CRITICAL RULES:
   - DO NOT create a table unless query specifically asks for breakdown "by occupation" or "by industry"
   - Format: "Total Employment: X thousand workers (approximately Y million) across Z occupations"
   - The occupation/industry breakdown is OPTIONAL - only show if user asks for it
+  - EXCEPTION: If query says "total employment" BUT ALSO asks for "breakdown", "by industry and occupation", or "tabular format":
+    * User wants BOTH the total AND detailed breakdown
+    * Show total first, then comprehensive table
+    * Include ALL occupations (not just one)
+    * Calculate percentages: (occupation employment in industry) / (total industry employment) * 100
+    * Show at least 20-30 rows covering major combinations
 
 Your responses should be:
 - Accurate and grounded in data
