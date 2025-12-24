@@ -93,6 +93,11 @@ For BREAKDOWN BY INDUSTRY AND OCCUPATION queries:
 - This requires showing ALL occupation-industry combinations
 - DO NOT show only one occupation (e.g., only Architects)
 - Include ALL occupations present: Accountants, Engineers, Architects, Drafters, Managers, etc.
+- **CRITICAL: If you see data with format "Industry: X, Occupation: Y, Employment: Z"**:
+  * This is pre-computed breakdown data - USE IT DIRECTLY
+  * DO NOT filter to one occupation
+  * Show ALL combinations provided in the data
+  * Each row in your table should match one data point
 - For each Industry-Occupation pair, show:
   * Industry name
   * Occupation name
@@ -108,6 +113,7 @@ For BREAKDOWN BY INDUSTRY AND OCCUPATION queries:
   | Government | Accountants | 126.27 | 56.1% |
   ... (continue with more combinations)
 - Notice: Multiple occupations shown, not just one
+- **DO NOT pick one occupation and show it across industries - show ALL occupation-industry pairs**
 
 IMPORTANT: When asked about "specific tasks" or "what tasks" or "task descriptions":
 - Look at the SEMANTIC SEARCH RESULTS section which contains actual task descriptions
