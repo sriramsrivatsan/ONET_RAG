@@ -106,16 +106,15 @@ class ClientView:
             - Compare task requirements across Healthcare and Technology industries
             """)
         
-        # Query input - controlled by session state for proper clearing
+        # Query input - Streamlit automatically syncs with session state via key
         if 'main_query' not in st.session_state:
             st.session_state.main_query = ""
         
         query = st.text_area(
             "Enter your question:",
-            value=st.session_state.main_query,
             height=100,
             placeholder="Example: What jobs likely require creating digital documents as part of the work?",
-            key="query_input"
+            key="main_query"  # Streamlit auto-syncs this with st.session_state.main_query
         )
         
         # Query settings - Always retrieve all documents
@@ -332,83 +331,9 @@ class ClientView:
         
         with col2:
             if st.button("🌐 Enhanced RAG", type="secondary", use_container_width=True, key="btn_enhanced"):
-                # Re-run the SAME query with external LLM intelligence
-                with st.spinner("🔄 Re-running query with external intelligence..."):
-                    try:
-                        original_query = st.session_state.last_query
-                        if not original_query:
-                            st.warning("No previous query to enhance")
-                        else:
-                            # Step 1: Re-run the original query through RAG
-                            k_results = st.session_state.get('document_count', 1000)
-                            response = self.query_processor.process_query(
-                                query=original_query,
-                                k_results=k_results
-                            )
-                            
-                            # Step 2: Generate external intelligence about the topic
-                            api_key = config.get_openai_api_key()
-                            response_builder = ResponseBuilder(api_key)
-                            
-                            enhancement_prompt = f"""
-                            Query: {original_query}
-                            
-                            Based on the query above, provide external market intelligence and context:
-                            
-                            1. Recent industry trends and developments (last 2-3 years)
-                            2. External statistics or data points from reliable sources
-                            3. Best practices and insights from industry reports
-                            4. Emerging patterns and future outlook (next 3-5 years)
-                            5. Key skills or competencies becoming more important
-                            
-                            Format as 5 concise bullet points. Focus on information that complements 
-                            internal data analysis for labor market planning.
-                            """
-                            
-                            external_intelligence = response_builder.generate_enhanced_response(
-                                query=enhancement_prompt,
-                                context="",
-                                use_web_search=True
-                            )
-                            
-                            # Step 3: Display the re-queried results
-                            st.markdown("---")
-                            st.markdown("### 🔄 Enhanced Query Results")
-                            st.markdown(response['answer'])
-                            
-                            # Step 4: Display external intelligence section
-                            st.markdown("---")
-                            st.markdown("### 🌐 External Data & Intelligence")
-                            st.info("💡 The information below is sourced from external data and LLM intelligence to complement your analysis.")
-                            st.markdown(external_intelligence)
-                            
-                            # Store both in session state for persistence
-                            st.session_state.enhanced_rag_data = {
-                                'query_result': response['answer'],
-                                'external_intelligence': external_intelligence
-                            }
-                            
-                            # Display CSV if available from re-query
-                            if response.get('csv_data') is not None:
-                                st.markdown("---")
-                                st.subheader("📥 Enhanced Query Data")
-                                st.dataframe(response['csv_data'])
-                                
-                                csv_buffer = StringIO()
-                                response['csv_data'].to_csv(csv_buffer, index=False)
-                                st.download_button(
-                                    label="⬇️ Download Enhanced Query Results",
-                                    data=csv_buffer.getvalue(),
-                                    file_name="enhanced_query_results.csv",
-                                    mime="text/csv",
-                                    key="download_enhanced"
-                                )
-                            
-                            logger.info("Enhanced RAG completed with re-query and external intelligence")
-                            
-                    except Exception as e:
-                        logger.error(f"Enhanced RAG failed: {str(e)}", show_ui=True)
-                        st.error(f"Failed to enhance with external data: {str(e)}")
+                # Set flag to trigger Enhanced RAG processing
+                st.session_state.run_enhanced_rag = True
+                st.rerun()
         
         with col3:
             # Direct download button - immediately downloads filtered dataset as CSV
@@ -460,6 +385,11 @@ class ClientView:
             if st.button("🆕 New Query", type="primary", use_container_width=True, key="btn_new"):
                 self._start_new_query()
         
+        # Process Enhanced RAG if flag is set (happens OUTSIDE button callback for persistence)
+        if st.session_state.get('run_enhanced_rag', False):
+            self._execute_enhanced_rag()
+            st.session_state.run_enhanced_rag = False  # Clear flag after processing
+        
         # Display persistent sections after buttons (these persist across reruns)
         
         # Show follow-up query interface if activated
@@ -469,6 +399,75 @@ class ClientView:
         # Show enhanced RAG results if available (persists across reruns)
         if st.session_state.get('enhanced_rag_data'):
             self._display_enhanced_rag_section()
+    
+    def _execute_enhanced_rag(self):
+        """Execute Enhanced RAG: re-query + external intelligence"""
+        
+        with st.spinner("🔄 Re-running query with external intelligence..."):
+            try:
+                original_query = st.session_state.last_query
+                if not original_query:
+                    st.warning("⚠️ No previous query to enhance. Please run a query first.")
+                    return
+                
+                st.info(f"📝 Re-querying: '{original_query}'")
+                
+                # Step 1: Re-run the original query through RAG
+                k_results = st.session_state.get('document_count', 1000)
+                try:
+                    response = self.query_processor.process_query(
+                        query=original_query,
+                        k_results=k_results
+                    )
+                    st.success("✅ Step 1/2: Query re-processed successfully")
+                except Exception as e:
+                    st.error(f"❌ Re-query failed: {str(e)}")
+                    raise
+                
+                # Step 2: Generate external intelligence about the topic
+                api_key = config.get_openai_api_key()
+                response_builder = ResponseBuilder(api_key)
+                
+                enhancement_prompt = f"""
+                Query: {original_query}
+                
+                Based on the query above, provide external market intelligence and context:
+                
+                1. Recent industry trends and developments (last 2-3 years)
+                2. External statistics or data points from reliable sources
+                3. Best practices and insights from industry reports
+                4. Emerging patterns and future outlook (next 3-5 years)
+                5. Key skills or competencies becoming more important
+                
+                Format as 5 concise bullet points. Focus on information that complements 
+                internal data analysis for labor market planning.
+                """
+                
+                try:
+                    external_intelligence = response_builder.generate_enhanced_response(
+                        query=enhancement_prompt,
+                        context="",
+                        use_web_search=True
+                    )
+                    st.success("✅ Step 2/2: External intelligence generated")
+                except Exception as e:
+                    st.error(f"❌ External intelligence generation failed: {str(e)}")
+                    raise
+                
+                # Store both in session state for persistent display
+                st.session_state.enhanced_rag_data = {
+                    'query_result': response['answer'],
+                    'external_intelligence': external_intelligence,
+                    'csv_data': response.get('csv_data')
+                }
+                
+                st.success("🎉 Enhanced RAG completed! Scroll down to see results.")
+                logger.info("Enhanced RAG completed with re-query and external intelligence")
+                
+            except Exception as e:
+                logger.error(f"Enhanced RAG failed: {str(e)}", show_ui=True)
+                st.error(f"❌ Enhanced RAG failed: {str(e)}")
+                st.info("💡 Please check your API key configuration and try again.")
     
     def _show_followup_query_interface(self):
         """Show interface for follow-up query on filtered dataset"""
@@ -651,6 +650,22 @@ class ClientView:
             st.markdown("### 🔄 Enhanced Query Results")
             st.markdown(enhanced_data['query_result'])
             
+            # Display CSV if available from re-query
+            if enhanced_data.get('csv_data') is not None:
+                st.markdown("---")
+                st.subheader("📥 Enhanced Query Data")
+                st.dataframe(enhanced_data['csv_data'])
+                
+                csv_buffer = StringIO()
+                enhanced_data['csv_data'].to_csv(csv_buffer, index=False)
+                st.download_button(
+                    label="⬇️ Download Enhanced Query Results",
+                    data=csv_buffer.getvalue(),
+                    file_name="enhanced_query_results.csv",
+                    mime="text/csv",
+                    key="download_enhanced_persistent"
+                )
+            
             st.markdown("---")
             st.markdown("### 🌐 External Data & Intelligence")
             st.info("💡 The information below is sourced from external data and LLM intelligence to complement your analysis.")
@@ -832,14 +847,14 @@ class ClientView:
         st.session_state.filtered_dataset = None
         st.session_state.show_post_query_buttons = False
         st.session_state.enhanced_rag_data = None
+        st.session_state.run_enhanced_rag = False
         
         # Clear persistent display flags
         st.session_state.show_followup_interface = False
         st.session_state.show_download_section = False
         
-        # Clear the query input
-        if 'main_query' in st.session_state:
-            st.session_state.main_query = ""
+        # Clear the query text box (synced automatically via key)
+        st.session_state.main_query = ""
         
         st.success("✅ Ready for new query! Enter your question above.")
         st.rerun()
