@@ -106,12 +106,16 @@ class ClientView:
             - Compare task requirements across Healthcare and Technology industries
             """)
         
-        # Query input
+        # Query input - controlled by session state for proper clearing
+        if 'main_query' not in st.session_state:
+            st.session_state.main_query = ""
+        
         query = st.text_area(
             "Enter your question:",
+            value=st.session_state.main_query,
             height=100,
             placeholder="Example: What jobs likely require creating digital documents as part of the work?",
-            key="main_query"
+            key="query_input"
         )
         
         # Query settings - Always retrieve all documents
@@ -133,6 +137,8 @@ class ClientView:
                 st.warning("Please enter a question")
                 return
             
+            # Store query in session state for persistence
+            st.session_state.main_query = query
             self._process_and_display_query(query, k_results, show_debug)
     
     def _process_and_display_query(self, query: str, k_results: int, show_debug: bool):
@@ -326,48 +332,79 @@ class ClientView:
         
         with col2:
             if st.button("🌐 Enhanced RAG", type="secondary", use_container_width=True, key="btn_enhanced"):
-                # Immediately process and display - no intermediate steps
-                with st.spinner("🔄 Gathering external intelligence..."):
+                # Re-run the SAME query with external LLM intelligence
+                with st.spinner("🔄 Re-running query with external intelligence..."):
                     try:
                         original_query = st.session_state.last_query
                         if not original_query:
                             st.warning("No previous query to enhance")
                         else:
-                            # Process Enhanced RAG
+                            # Step 1: Re-run the original query through RAG
+                            k_results = st.session_state.get('document_count', 1000)
+                            response = self.query_processor.process_query(
+                                query=original_query,
+                                k_results=k_results
+                            )
+                            
+                            # Step 2: Generate external intelligence about the topic
                             api_key = config.get_openai_api_key()
                             response_builder = ResponseBuilder(api_key)
                             
                             enhancement_prompt = f"""
-                            Original Query: {original_query}
+                            Query: {original_query}
                             
-                            The user has received an initial analysis and now wants additional context from external sources.
+                            Based on the query above, provide external market intelligence and context:
                             
-                            Please provide:
-                            1. Industry trends and recent developments related to this query
-                            2. External data points or statistics that complement the analysis
-                            3. Best practices or insights from industry reports
-                            4. Relevant market dynamics or emerging patterns
+                            1. Recent industry trends and developments (last 2-3 years)
+                            2. External statistics or data points from reliable sources
+                            3. Best practices and insights from industry reports
+                            4. Emerging patterns and future outlook (next 3-5 years)
+                            5. Key skills or competencies becoming more important
                             
-                            Focus on information that would be valuable for labor market analysis and workforce planning.
-                            Keep the response concise (3-5 key points) and cite sources when possible.
+                            Format as 5 concise bullet points. Focus on information that complements 
+                            internal data analysis for labor market planning.
                             """
                             
-                            enhanced_data = response_builder.generate_enhanced_response(
+                            external_intelligence = response_builder.generate_enhanced_response(
                                 query=enhancement_prompt,
                                 context="",
                                 use_web_search=True
                             )
                             
-                            # Store in session state for persistent display
-                            st.session_state.enhanced_rag_data = enhanced_data
+                            # Step 3: Display the re-queried results
+                            st.markdown("---")
+                            st.markdown("### 🔄 Enhanced Query Results")
+                            st.markdown(response['answer'])
                             
-                            # DISPLAY IMMEDIATELY (this will show in this render cycle)
+                            # Step 4: Display external intelligence section
                             st.markdown("---")
                             st.markdown("### 🌐 External Data & Intelligence")
                             st.info("💡 The information below is sourced from external data and LLM intelligence to complement your analysis.")
-                            st.markdown(enhanced_data)
+                            st.markdown(external_intelligence)
                             
-                            logger.info("Enhanced RAG completed and displayed")
+                            # Store both in session state for persistence
+                            st.session_state.enhanced_rag_data = {
+                                'query_result': response['answer'],
+                                'external_intelligence': external_intelligence
+                            }
+                            
+                            # Display CSV if available from re-query
+                            if response.get('csv_data') is not None:
+                                st.markdown("---")
+                                st.subheader("📥 Enhanced Query Data")
+                                st.dataframe(response['csv_data'])
+                                
+                                csv_buffer = StringIO()
+                                response['csv_data'].to_csv(csv_buffer, index=False)
+                                st.download_button(
+                                    label="⬇️ Download Enhanced Query Results",
+                                    data=csv_buffer.getvalue(),
+                                    file_name="enhanced_query_results.csv",
+                                    mime="text/csv",
+                                    key="download_enhanced"
+                                )
+                            
+                            logger.info("Enhanced RAG completed with re-query and external intelligence")
                             
                     except Exception as e:
                         logger.error(f"Enhanced RAG failed: {str(e)}", show_ui=True)
@@ -605,13 +642,27 @@ class ClientView:
         """Display the enhanced RAG section persistently"""
         
         st.markdown("---")
-        st.markdown("### 🌐 External Data & Intelligence")
-        st.info("💡 The information below is sourced from external data and LLM intelligence to complement your analysis.")
         
-        st.markdown(st.session_state.enhanced_rag_data)
+        # Check if enhanced_rag_data is the new dict structure or old string structure
+        enhanced_data = st.session_state.enhanced_rag_data
+        
+        if isinstance(enhanced_data, dict):
+            # New structure with re-query results + external intelligence
+            st.markdown("### 🔄 Enhanced Query Results")
+            st.markdown(enhanced_data['query_result'])
+            
+            st.markdown("---")
+            st.markdown("### 🌐 External Data & Intelligence")
+            st.info("💡 The information below is sourced from external data and LLM intelligence to complement your analysis.")
+            st.markdown(enhanced_data['external_intelligence'])
+        else:
+            # Old structure (just external intelligence string) - for backward compatibility
+            st.markdown("### 🌐 External Data & Intelligence")
+            st.info("💡 The information below is sourced from external data and LLM intelligence to complement your analysis.")
+            st.markdown(enhanced_data)
         
         # Option to clear enhanced results
-        if st.button("🗑️ Clear External Intelligence", key="clear_enhanced_rag"):
+        if st.button("🗑️ Clear Enhanced Results", key="clear_enhanced_rag"):
             st.session_state.enhanced_rag_data = None
             st.rerun()
     
