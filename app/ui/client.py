@@ -150,6 +150,25 @@ class ClientView:
                 st.markdown("### 📊 Analysis Results")
                 st.markdown(response['answer'])
                 
+                # Store results for follow-up functionality
+                st.session_state.last_query = query
+                st.session_state.last_query_results = response
+                st.session_state.show_post_query_buttons = True
+                
+                # Store filtered dataset if available
+                if response.get('retrieval_results', {}).get('filtered_dataframe') is not None:
+                    st.session_state.filtered_dataset = response['retrieval_results']['filtered_dataframe']
+                elif response.get('retrieval_results', {}).get('semantic_results'):
+                    # Extract row indices from semantic results and filter dataframe
+                    semantic_results = response['retrieval_results']['semantic_results']
+                    row_indices = [
+                        r['metadata'].get('row_index')
+                        for r in semantic_results
+                        if 'row_index' in r.get('metadata', {})
+                    ]
+                    if row_indices and st.session_state.dataframe is not None:
+                        st.session_state.filtered_dataset = st.session_state.dataframe.loc[row_indices]
+                
                 # Display CSV if available
                 if response.get('csv_data') is not None:
                     st.markdown("---")
@@ -169,6 +188,10 @@ class ClientView:
                         file_name="labor_market_analysis.csv",
                         mime="text/csv"
                     )
+                
+                # Render post-query action buttons
+                st.markdown("---")
+                self._render_post_query_buttons()
                 
                 # Show debug info if requested
                 if show_debug:
@@ -284,3 +307,275 @@ class ClientView:
                     st.write(f"**{i}. {item['query'][:100]}...**")
                     st.caption(f"Time: {item['timestamp']}")
                     st.markdown("---")
+    
+    def _render_post_query_buttons(self):
+        """Render post-query action buttons"""
+        
+        if not st.session_state.show_post_query_buttons:
+            return
+        
+        st.subheader("🎯 Next Actions")
+        st.markdown("Choose one of the following options to continue your analysis:")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            if st.button("🔄 Follow-up Query", type="secondary", use_container_width=True, key="btn_followup"):
+                self._show_followup_query_interface()
+        
+        with col2:
+            if st.button("🌐 Enhanced RAG", type="secondary", use_container_width=True, key="btn_enhanced"):
+                self._process_enhanced_rag()
+        
+        with col3:
+            if st.button("📥 Download CSV", type="secondary", use_container_width=True, key="btn_download"):
+                self._show_download_interface()
+        
+        with col4:
+            if st.button("🆕 New Query", type="primary", use_container_width=True, key="btn_new"):
+                self._start_new_query()
+    
+    def _show_followup_query_interface(self):
+        """Show interface for follow-up query on filtered dataset"""
+        
+        st.markdown("---")
+        st.subheader("🔄 Follow-up Query")
+        st.info("💡 This query will only search within the results from your previous query.")
+        
+        if st.session_state.filtered_dataset is None or st.session_state.filtered_dataset.empty:
+            st.warning("⚠️ No filtered dataset available from previous query. Starting fresh query instead.")
+            return
+        
+        dataset_size = len(st.session_state.filtered_dataset)
+        st.success(f"✓ Querying filtered dataset of {dataset_size:,} records")
+        
+        followup_query = st.text_area(
+            "Enter your follow-up question:",
+            height=80,
+            placeholder="Ask a question about the previous results...",
+            key="followup_query_input"
+        )
+        
+        if st.button("🚀 Run Follow-up Query", type="primary", key="btn_run_followup"):
+            if not followup_query.strip():
+                st.warning("Please enter a follow-up question")
+                return
+            
+            self._process_followup_query(followup_query)
+    
+    def _process_followup_query(self, query: str):
+        """Process follow-up query on filtered dataset"""
+        
+        with st.spinner("🔄 Processing follow-up query on filtered dataset..."):
+            try:
+                # Temporarily replace the full dataset with filtered dataset
+                original_df = st.session_state.dataframe
+                st.session_state.dataframe = st.session_state.filtered_dataset
+                
+                # Reinitialize retriever with filtered dataset
+                retriever = HybridRetriever(
+                    vector_store=st.session_state.vector_store,
+                    dataframe=st.session_state.filtered_dataset,
+                    aggregator=st.session_state.aggregator
+                )
+                
+                # Reinitialize query processor with filtered data
+                api_key = config.get_openai_api_key()
+                response_builder = ResponseBuilder(api_key)
+                temp_processor = QueryProcessor(
+                    response_builder=response_builder,
+                    retriever=retriever,
+                    dataframe=st.session_state.filtered_dataset
+                )
+                
+                # Process query
+                k_results = len(st.session_state.filtered_dataset)
+                response = temp_processor.process_query(
+                    query=query,
+                    k_results=k_results
+                )
+                
+                # Display results
+                st.markdown("### 📊 Follow-up Analysis Results")
+                st.markdown(response['answer'])
+                
+                # Update state for potential further follow-ups
+                st.session_state.last_query = query
+                st.session_state.last_query_results = response
+                
+                # Export option for follow-up results
+                if response.get('csv_data') is not None:
+                    st.markdown("---")
+                    st.subheader("📥 Follow-up Data Export")
+                    csv_df = response['csv_data']
+                    st.dataframe(csv_df)
+                    
+                    csv_buffer = StringIO()
+                    csv_df.to_csv(csv_buffer, index=False)
+                    csv_str = csv_buffer.getvalue()
+                    
+                    st.download_button(
+                        label="⬇️ Download Follow-up CSV",
+                        data=csv_str,
+                        file_name="followup_analysis.csv",
+                        mime="text/csv",
+                        key="download_followup"
+                    )
+                
+                # Restore original dataset
+                st.session_state.dataframe = original_df
+                
+                logger.info(f"Follow-up query processed successfully on {k_results} records")
+                
+            except Exception as e:
+                # Restore original dataset on error
+                st.session_state.dataframe = original_df
+                logger.error(f"Follow-up query processing failed: {str(e)}", show_ui=True)
+                st.error(f"Failed to process follow-up query: {str(e)}")
+    
+    def _process_enhanced_rag(self):
+        """Process enhanced RAG with external data"""
+        
+        st.markdown("---")
+        st.subheader("🌐 Enhanced RAG with External Data")
+        
+        with st.spinner("🔄 Enhancing results with external intelligence..."):
+            try:
+                # Get the original query and response
+                original_query = st.session_state.last_query
+                original_response = st.session_state.last_query_results
+                
+                if not original_query:
+                    st.warning("No previous query to enhance")
+                    return
+                
+                # Call LLM to enhance the response with web search
+                api_key = config.get_openai_api_key()
+                response_builder = ResponseBuilder(api_key)
+                
+                # Build enhanced context using web search
+                enhancement_prompt = f"""
+                Original Query: {original_query}
+                
+                The user has received an initial analysis and now wants additional context from external sources.
+                
+                Please provide:
+                1. Industry trends and recent developments related to this query
+                2. External data points or statistics that complement the analysis
+                3. Best practices or insights from industry reports
+                4. Relevant market dynamics or emerging patterns
+                
+                Focus on information that would be valuable for labor market analysis and workforce planning.
+                Keep the response concise (3-5 key points) and cite sources when possible.
+                """
+                
+                # Get enhanced response (using web search if available)
+                enhanced_data = response_builder.generate_enhanced_response(
+                    query=enhancement_prompt,
+                    context="",
+                    use_web_search=True
+                )
+                
+                # Display enhanced data
+                st.markdown("### 🌐 External Data & Intelligence")
+                st.info("💡 The information below is sourced from external data and LLM intelligence to complement your analysis.")
+                
+                st.markdown(enhanced_data)
+                
+                # Store enhanced data
+                st.session_state.enhanced_rag_data = enhanced_data
+                
+                st.success("✅ Enhanced analysis complete!")
+                
+                logger.info("Enhanced RAG processing completed")
+                
+            except Exception as e:
+                logger.error(f"Enhanced RAG failed: {str(e)}", show_ui=True)
+                st.error(f"Failed to enhance with external data: {str(e)}")
+    
+    def _show_download_interface(self):
+        """Show interface for downloading result dataset"""
+        
+        st.markdown("---")
+        st.subheader("📥 Download Result Dataset")
+        
+        try:
+            # Get the filtered dataset from previous query
+            if st.session_state.filtered_dataset is not None and not st.session_state.filtered_dataset.empty:
+                df_to_export = st.session_state.filtered_dataset
+                st.info(f"📊 Exporting {len(df_to_export):,} records from your query results")
+            elif st.session_state.last_query_results and st.session_state.last_query_results.get('csv_data') is not None:
+                df_to_export = st.session_state.last_query_results['csv_data']
+                st.info(f"📊 Exporting {len(df_to_export):,} records from analysis results")
+            else:
+                st.warning("⚠️ No data available to export")
+                return
+            
+            # Preview data
+            st.markdown("**Preview:**")
+            st.dataframe(df_to_export.head(10))
+            
+            # Export options
+            st.markdown("**Export Format:**")
+            export_format = st.radio(
+                "Choose format:",
+                ["CSV", "Excel", "JSON"],
+                horizontal=True,
+                key="export_format"
+            )
+            
+            # Generate export data
+            if export_format == "CSV":
+                buffer = StringIO()
+                df_to_export.to_csv(buffer, index=False)
+                data = buffer.getvalue()
+                mime_type = "text/csv"
+                file_extension = "csv"
+            elif export_format == "Excel":
+                from io import BytesIO
+                buffer = BytesIO()
+                df_to_export.to_excel(buffer, index=False, engine='openpyxl')
+                data = buffer.getvalue()
+                mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                file_extension = "xlsx"
+            else:  # JSON
+                data = df_to_export.to_json(orient='records', indent=2)
+                mime_type = "application/json"
+                file_extension = "json"
+            
+            # Download button
+            timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"labor_market_results_{timestamp}.{file_extension}"
+            
+            st.download_button(
+                label=f"⬇️ Download {export_format}",
+                data=data,
+                file_name=filename,
+                mime=mime_type,
+                type="primary",
+                use_container_width=True,
+                key="download_results"
+            )
+            
+            st.success(f"✅ Ready to download! File: {filename}")
+            
+        except Exception as e:
+            logger.error(f"Export failed: {str(e)}", show_ui=True)
+            st.error(f"Failed to prepare export: {str(e)}")
+    
+    def _start_new_query(self):
+        """Reset state and start a new query"""
+        
+        # Clear query-related state
+        st.session_state.last_query = None
+        st.session_state.last_query_results = None
+        st.session_state.filtered_dataset = None
+        st.session_state.show_post_query_buttons = False
+        st.session_state.enhanced_rag_data = None
+        
+        # Clear the query input
+        if 'main_query' in st.session_state:
+            st.session_state.main_query = ""
+        
+        st.success("✅ Ready for new query! Enter your question above.")
+        st.rerun()

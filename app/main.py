@@ -49,6 +49,41 @@ def initialize_session_state():
     if 'document_count' not in st.session_state:
         st.session_state.document_count = 0
     
+    # New: Query context management for follow-up queries and enhanced RAG
+    if 'last_query' not in st.session_state:
+        st.session_state.last_query = None
+    
+    if 'last_response' not in st.session_state:
+        st.session_state.last_response = None
+    
+    if 'filtered_dataframe' not in st.session_state:
+        st.session_state.filtered_dataframe = None
+    
+    if 'query_results_data' not in st.session_state:
+        st.session_state.query_results_data = None
+    
+    if 'show_query_actions' not in st.session_state:
+        st.session_state.show_query_actions = False
+    
+    if 'enhanced_rag_response' not in st.session_state:
+        st.session_state.enhanced_rag_response = None
+    
+    # Follow-up query state
+    if 'last_query' not in st.session_state:
+        st.session_state.last_query = None
+    
+    if 'last_query_results' not in st.session_state:
+        st.session_state.last_query_results = None
+    
+    if 'filtered_dataset' not in st.session_state:
+        st.session_state.filtered_dataset = None
+    
+    if 'show_post_query_buttons' not in st.session_state:
+        st.session_state.show_post_query_buttons = False
+    
+    if 'enhanced_rag_data' not in st.session_state:
+        st.session_state.enhanced_rag_data = None
+    
     if 'last_ingestion_time' not in st.session_state:
         st.session_state.last_ingestion_time = 'Never'
     

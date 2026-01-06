@@ -67,6 +67,58 @@ class ResponseBuilder:
             logger.error(f"Failed to generate response: {str(e)}", show_ui=True)
             return f"Error generating response: {str(e)}"
     
+    def generate_enhanced_response(
+        self,
+        query: str,
+        context: str = "",
+        use_web_search: bool = False
+    ) -> str:
+        """Generate enhanced response with optional web search
+        
+        Args:
+            query: The enhancement query/prompt
+            context: Optional context to include
+            use_web_search: Whether to enable web search (requires Claude API)
+            
+        Returns:
+            Enhanced response text
+        """
+        
+        try:
+            # Build messages
+            messages = [
+                {"role": "system", "content": "You are a helpful AI assistant specialized in labor market analysis and workforce intelligence."},
+                {"role": "user", "content": query}
+            ]
+            
+            # Add context if provided
+            if context:
+                messages.insert(1, {"role": "system", "content": f"Context: {context}"})
+            
+            # Call OpenAI API
+            # Note: OpenAI doesn't have built-in web search, so we'll provide comprehensive responses
+            # based on training data and general knowledge
+            response = self.client.chat.completions.create(
+                model=config.LLM_MODEL,
+                messages=messages,
+                temperature=0.7,  # Slightly higher for creative enhancement
+                max_tokens=1500  # More tokens for comprehensive enhancement
+            )
+            
+            answer = response.choices[0].message.content
+            
+            if answer is None:
+                logger.warning("OpenAI returned None for enhancement", show_ui=False)
+                return "Unable to generate enhanced response. Please try again."
+            
+            logger.info("Generated enhanced response successfully")
+            
+            return answer
+            
+        except Exception as e:
+            logger.error(f"Failed to generate enhanced response: {str(e)}", show_ui=True)
+            return f"Error generating enhanced response: {str(e)}"
+    
     def generate_csv_data(
         self,
         query: str,
