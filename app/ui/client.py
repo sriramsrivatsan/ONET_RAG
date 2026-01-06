@@ -326,17 +326,98 @@ class ClientView:
         
         with col2:
             if st.button("🌐 Enhanced RAG", type="secondary", use_container_width=True, key="btn_enhanced"):
-                # Process enhanced RAG (stores result in session state)
-                self._process_enhanced_rag()
-                # Trigger rerun to display the persistent section
-                st.rerun()
+                # Immediately process and display - no intermediate steps
+                with st.spinner("🔄 Gathering external intelligence..."):
+                    try:
+                        original_query = st.session_state.last_query
+                        if not original_query:
+                            st.warning("No previous query to enhance")
+                        else:
+                            # Process Enhanced RAG
+                            api_key = config.get_openai_api_key()
+                            response_builder = ResponseBuilder(api_key)
+                            
+                            enhancement_prompt = f"""
+                            Original Query: {original_query}
+                            
+                            The user has received an initial analysis and now wants additional context from external sources.
+                            
+                            Please provide:
+                            1. Industry trends and recent developments related to this query
+                            2. External data points or statistics that complement the analysis
+                            3. Best practices or insights from industry reports
+                            4. Relevant market dynamics or emerging patterns
+                            
+                            Focus on information that would be valuable for labor market analysis and workforce planning.
+                            Keep the response concise (3-5 key points) and cite sources when possible.
+                            """
+                            
+                            enhanced_data = response_builder.generate_enhanced_response(
+                                query=enhancement_prompt,
+                                context="",
+                                use_web_search=True
+                            )
+                            
+                            # Store in session state for persistent display
+                            st.session_state.enhanced_rag_data = enhanced_data
+                            
+                            # DISPLAY IMMEDIATELY (this will show in this render cycle)
+                            st.markdown("---")
+                            st.markdown("### 🌐 External Data & Intelligence")
+                            st.info("💡 The information below is sourced from external data and LLM intelligence to complement your analysis.")
+                            st.markdown(enhanced_data)
+                            
+                            logger.info("Enhanced RAG completed and displayed")
+                            
+                    except Exception as e:
+                        logger.error(f"Enhanced RAG failed: {str(e)}", show_ui=True)
+                        st.error(f"Failed to enhance with external data: {str(e)}")
         
         with col3:
-            # Direct download button - immediately prepares and offers download
-            if st.button("📥 Download CSV", type="secondary", use_container_width=True, key="btn_download"):
-                # Immediately show download in the persistent area
-                st.session_state.show_download_section = True
-                st.rerun()
+            # Direct download button - immediately downloads filtered dataset as CSV
+            if st.session_state.filtered_dataset is not None and not st.session_state.filtered_dataset.empty:
+                csv_buffer = StringIO()
+                st.session_state.filtered_dataset.to_csv(csv_buffer, index=False)
+                csv_data = csv_buffer.getvalue()
+                timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"labor_market_results_{timestamp}.csv"
+                
+                st.download_button(
+                    label="📥 Download CSV",
+                    data=csv_data,
+                    file_name=filename,
+                    mime="text/csv",
+                    type="secondary",
+                    use_container_width=True,
+                    key="btn_download_direct"
+                )
+            elif st.session_state.last_query_results and st.session_state.last_query_results.get('csv_data') is not None:
+                # Fallback to CSV data from results
+                csv_buffer = StringIO()
+                st.session_state.last_query_results['csv_data'].to_csv(csv_buffer, index=False)
+                csv_data = csv_buffer.getvalue()
+                timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"labor_market_results_{timestamp}.csv"
+                
+                st.download_button(
+                    label="📥 Download CSV",
+                    data=csv_data,
+                    file_name=filename,
+                    mime="text/csv",
+                    type="secondary",
+                    use_container_width=True,
+                    key="btn_download_direct"
+                )
+            else:
+                # No data available - show disabled button
+                st.button(
+                    "📥 Download CSV",
+                    type="secondary",
+                    use_container_width=True,
+                    disabled=True,
+                    key="btn_download_disabled",
+                    help="No data available to download"
+                )
         
         with col4:
             if st.button("🆕 New Query", type="primary", use_container_width=True, key="btn_new"):
@@ -348,13 +429,9 @@ class ClientView:
         if st.session_state.get('show_followup_interface', False):
             self._show_followup_query_interface()
         
-        # Show enhanced RAG results if available
+        # Show enhanced RAG results if available (persists across reruns)
         if st.session_state.get('enhanced_rag_data'):
             self._display_enhanced_rag_section()
-        
-        # Show download interface if activated
-        if st.session_state.get('show_download_section', False):
-            self._display_download_section()
     
     def _show_followup_query_interface(self):
         """Show interface for follow-up query on filtered dataset"""
