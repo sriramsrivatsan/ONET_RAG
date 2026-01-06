@@ -68,6 +68,16 @@ def initialize_session_state():
     if 'enhanced_rag_response' not in st.session_state:
         st.session_state.enhanced_rag_response = None
     
+    # Persistent display flags for post-query features
+    if 'show_followup_interface' not in st.session_state:
+        st.session_state.show_followup_interface = False
+    
+    if 'show_download_section' not in st.session_state:
+        st.session_state.show_download_section = False
+    
+    if 'enhanced_rag_data' not in st.session_state:
+        st.session_state.enhanced_rag_data = None
+    
     # Follow-up query state
     if 'last_query' not in st.session_state:
         st.session_state.last_query = None

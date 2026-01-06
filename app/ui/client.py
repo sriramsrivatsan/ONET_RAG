@@ -321,19 +321,40 @@ class ClientView:
         
         with col1:
             if st.button("🔄 Follow-up Query", type="secondary", use_container_width=True, key="btn_followup"):
-                self._show_followup_query_interface()
+                st.session_state.show_followup_interface = True
+                st.rerun()
         
         with col2:
             if st.button("🌐 Enhanced RAG", type="secondary", use_container_width=True, key="btn_enhanced"):
+                # Process enhanced RAG (stores result in session state)
                 self._process_enhanced_rag()
+                # Trigger rerun to display the persistent section
+                st.rerun()
         
         with col3:
+            # Direct download button - immediately prepares and offers download
             if st.button("📥 Download CSV", type="secondary", use_container_width=True, key="btn_download"):
-                self._show_download_interface()
+                # Immediately show download in the persistent area
+                st.session_state.show_download_section = True
+                st.rerun()
         
         with col4:
             if st.button("🆕 New Query", type="primary", use_container_width=True, key="btn_new"):
                 self._start_new_query()
+        
+        # Display persistent sections after buttons (these persist across reruns)
+        
+        # Show follow-up query interface if activated
+        if st.session_state.get('show_followup_interface', False):
+            self._show_followup_query_interface()
+        
+        # Show enhanced RAG results if available
+        if st.session_state.get('enhanced_rag_data'):
+            self._display_enhanced_rag_section()
+        
+        # Show download interface if activated
+        if st.session_state.get('show_download_section', False):
+            self._display_download_section()
     
     def _show_followup_query_interface(self):
         """Show interface for follow-up query on filtered dataset"""
@@ -356,12 +377,20 @@ class ClientView:
             key="followup_query_input"
         )
         
-        if st.button("🚀 Run Follow-up Query", type="primary", key="btn_run_followup"):
-            if not followup_query.strip():
-                st.warning("Please enter a follow-up question")
-                return
-            
-            self._process_followup_query(followup_query)
+        col_a, col_b = st.columns([3, 1])
+        
+        with col_a:
+            if st.button("🚀 Run Follow-up Query", type="primary", key="btn_run_followup", use_container_width=True):
+                if not followup_query.strip():
+                    st.warning("Please enter a follow-up question")
+                    return
+                
+                self._process_followup_query(followup_query)
+        
+        with col_b:
+            if st.button("✖️ Close", key="close_followup", use_container_width=True):
+                st.session_state.show_followup_interface = False
+                st.rerun()
     
     def _process_followup_query(self, query: str):
         """Process follow-up query on filtered dataset"""
@@ -403,6 +432,19 @@ class ClientView:
                 st.session_state.last_query = query
                 st.session_state.last_query_results = response
                 
+                # FIX: Add to query history (was missing!)
+                if 'query_history' not in st.session_state:
+                    st.session_state.query_history = []
+                
+                st.session_state.query_history.append({
+                    'query': f"[Follow-up] {query}",  # Mark as follow-up
+                    'timestamp': pd.Timestamp.now(),
+                    'response': response
+                })
+                
+                # Reset follow-up interface flag
+                st.session_state.show_followup_interface = False
+                
                 # Export option for follow-up results
                 if response.get('csv_data') is not None:
                     st.markdown("---")
@@ -434,10 +476,7 @@ class ClientView:
                 st.error(f"Failed to process follow-up query: {str(e)}")
     
     def _process_enhanced_rag(self):
-        """Process enhanced RAG with external data"""
-        
-        st.markdown("---")
-        st.subheader("🌐 Enhanced RAG with External Data")
+        """Process enhanced RAG with external data (stores in session state)"""
         
         with st.spinner("🔄 Enhancing results with external intelligence..."):
             try:
@@ -476,22 +515,115 @@ class ClientView:
                     use_web_search=True
                 )
                 
-                # Display enhanced data
-                st.markdown("### 🌐 External Data & Intelligence")
-                st.info("💡 The information below is sourced from external data and LLM intelligence to complement your analysis.")
-                
-                st.markdown(enhanced_data)
-                
-                # Store enhanced data
+                # Store enhanced data in session state (will be displayed persistently)
                 st.session_state.enhanced_rag_data = enhanced_data
-                
-                st.success("✅ Enhanced analysis complete!")
                 
                 logger.info("Enhanced RAG processing completed")
                 
             except Exception as e:
                 logger.error(f"Enhanced RAG failed: {str(e)}", show_ui=True)
                 st.error(f"Failed to enhance with external data: {str(e)}")
+    
+    def _display_enhanced_rag_section(self):
+        """Display the enhanced RAG section persistently"""
+        
+        st.markdown("---")
+        st.markdown("### 🌐 External Data & Intelligence")
+        st.info("💡 The information below is sourced from external data and LLM intelligence to complement your analysis.")
+        
+        st.markdown(st.session_state.enhanced_rag_data)
+        
+        # Option to clear enhanced results
+        if st.button("🗑️ Clear External Intelligence", key="clear_enhanced_rag"):
+            st.session_state.enhanced_rag_data = None
+            st.rerun()
+    
+    def _display_download_section(self):
+        """Display the download section persistently"""
+        
+        st.markdown("---")
+        st.subheader("📥 Download Result Dataset")
+        
+        try:
+            # Get the filtered dataset from previous query
+            if st.session_state.filtered_dataset is not None and not st.session_state.filtered_dataset.empty:
+                df_to_export = st.session_state.filtered_dataset
+                st.info(f"📊 Exporting {len(df_to_export):,} records from your query results")
+            elif st.session_state.last_query_results and st.session_state.last_query_results.get('csv_data') is not None:
+                df_to_export = st.session_state.last_query_results['csv_data']
+                st.info(f"📊 Exporting {len(df_to_export):,} records from analysis results")
+            else:
+                st.warning("⚠️ No data available to export")
+                if st.button("Close", key="close_download_empty"):
+                    st.session_state.show_download_section = False
+                    st.rerun()
+                return
+            
+            # Preview data
+            st.markdown("**Preview (first 10 rows):**")
+            st.dataframe(df_to_export.head(10), use_container_width=True)
+            
+            # Export format selection
+            st.markdown("**Select Export Format:**")
+            
+            col_a, col_b = st.columns([3, 1])
+            
+            with col_a:
+                export_format = st.radio(
+                    "Format:",
+                    ["CSV", "Excel", "JSON"],
+                    horizontal=True,
+                    key="export_format_radio"
+                )
+            
+            # Generate export data based on format
+            timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+            
+            if export_format == "CSV":
+                buffer = StringIO()
+                df_to_export.to_csv(buffer, index=False)
+                data = buffer.getvalue()
+                mime_type = "text/csv"
+                filename = f"labor_market_results_{timestamp}.csv"
+            elif export_format == "Excel":
+                from io import BytesIO
+                buffer = BytesIO()
+                df_to_export.to_excel(buffer, index=False, engine='openpyxl')
+                data = buffer.getvalue()
+                mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                filename = f"labor_market_results_{timestamp}.xlsx"
+            else:  # JSON
+                data = df_to_export.to_json(orient='records', indent=2)
+                mime_type = "application/json"
+                filename = f"labor_market_results_{timestamp}.json"
+            
+            # Download buttons
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                st.download_button(
+                    label=f"⬇️ Download {export_format} ({len(df_to_export):,} rows)",
+                    data=data,
+                    file_name=filename,
+                    mime=mime_type,
+                    type="primary",
+                    use_container_width=True,
+                    key="download_data_button"
+                )
+            
+            with col2:
+                if st.button("✖️ Close", use_container_width=True, key="close_download"):
+                    st.session_state.show_download_section = False
+                    st.rerun()
+            
+            st.success(f"✅ Ready to download! File: {filename}")
+            
+        except Exception as e:
+            logger.error(f"Export failed: {str(e)}", show_ui=True)
+            st.error(f"Failed to prepare export: {str(e)}")
+            if st.button("Close", key="close_download_error"):
+                st.session_state.show_download_section = False
+                st.rerun()
     
     def _show_download_interface(self):
         """Show interface for downloading result dataset"""
@@ -572,6 +704,10 @@ class ClientView:
         st.session_state.filtered_dataset = None
         st.session_state.show_post_query_buttons = False
         st.session_state.enhanced_rag_data = None
+        
+        # Clear persistent display flags
+        st.session_state.show_followup_interface = False
+        st.session_state.show_download_section = False
         
         # Clear the query input
         if 'main_query' in st.session_state:
