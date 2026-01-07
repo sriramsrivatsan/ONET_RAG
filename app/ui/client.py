@@ -106,22 +106,16 @@ class ClientView:
             - Compare task requirements across Healthcare and Technology industries
             """)
         
-        # Query input - Streamlit automatically syncs with session state via key
-        # Handle reset: Clear session state BEFORE widget is created
-        if st.session_state.get('reset_query_flag', False):
-            if 'main_query' in st.session_state:
-                del st.session_state['main_query']
-            st.session_state.reset_query_flag = False
-        
-        # Initialize if needed
-        if 'main_query' not in st.session_state:
-            st.session_state.main_query = ""
+        # Query input - Use versioned key for proper reset behavior
+        # Each time we reset, increment version to create a new widget
+        if 'query_widget_version' not in st.session_state:
+            st.session_state.query_widget_version = 0
         
         query = st.text_area(
             "Enter your question:",
             height=100,
             placeholder="Example: What jobs likely require creating digital documents as part of the work?",
-            key="main_query"  # Streamlit auto-syncs this with st.session_state.main_query
+            key=f"main_query_v{st.session_state.query_widget_version}"  # Versioned key
         )
         
         # Query settings - Always retrieve all documents
@@ -145,6 +139,12 @@ class ClientView:
             
             # No need to store - widget with key="main_query" automatically updates session state!
             self._process_and_display_query(query, k_results, show_debug)
+        
+        # Render post-query buttons OUTSIDE the button callback
+        # This ensures they render on every page load if show_post_query_buttons is True
+        if st.session_state.get('show_post_query_buttons', False):
+            st.markdown("---")
+            self._render_post_query_buttons()
     
     def _process_and_display_query(self, query: str, k_results: int, show_debug: bool):
         """Process query and display results"""
@@ -199,10 +199,6 @@ class ClientView:
                         file_name="labor_market_analysis.csv",
                         mime="text/csv"
                     )
-                
-                # Render post-query action buttons
-                st.markdown("---")
-                self._render_post_query_buttons()
                 
                 # Show debug info if requested
                 if show_debug:
@@ -859,8 +855,8 @@ class ClientView:
         st.session_state.show_followup_interface = False
         st.session_state.show_download_section = False
         
-        # Set reset flag - text area will be cleared on next render BEFORE widget creation
-        st.session_state.reset_query_flag = True
+        # Increment widget version to create a new text area (this clears it)
+        st.session_state.query_widget_version += 1
         
         st.success("✅ Ready for new query! Enter your question above.")
         st.rerun()
