@@ -107,6 +107,13 @@ class ClientView:
             """)
         
         # Query input - Streamlit automatically syncs with session state via key
+        # Handle reset: Clear session state BEFORE widget is created
+        if st.session_state.get('reset_query_flag', False):
+            if 'main_query' in st.session_state:
+                del st.session_state['main_query']
+            st.session_state.reset_query_flag = False
+        
+        # Initialize if needed
         if 'main_query' not in st.session_state:
             st.session_state.main_query = ""
         
@@ -136,8 +143,7 @@ class ClientView:
                 st.warning("Please enter a question")
                 return
             
-            # Store query in session state for persistence
-            st.session_state.main_query = query
+            # No need to store - widget with key="main_query" automatically updates session state!
             self._process_and_display_query(query, k_results, show_debug)
     
     def _process_and_display_query(self, query: str, k_results: int, show_debug: bool):
@@ -853,8 +859,8 @@ class ClientView:
         st.session_state.show_followup_interface = False
         st.session_state.show_download_section = False
         
-        # Clear the query text box (synced automatically via key)
-        st.session_state.main_query = ""
+        # Set reset flag - text area will be cleared on next render BEFORE widget creation
+        st.session_state.reset_query_flag = True
         
         st.success("✅ Ready for new query! Enter your question above.")
         st.rerun()

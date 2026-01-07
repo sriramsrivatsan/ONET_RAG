@@ -78,6 +78,9 @@ def initialize_session_state():
     if 'enhanced_rag_data' not in st.session_state:
         st.session_state.enhanced_rag_data = None
     
+    if 'run_enhanced_rag' not in st.session_state:
+        st.session_state.run_enhanced_rag = False
+    
     # Follow-up query state
     if 'last_query' not in st.session_state:
         st.session_state.last_query = None
@@ -93,6 +96,13 @@ def initialize_session_state():
     
     if 'enhanced_rag_data' not in st.session_state:
         st.session_state.enhanced_rag_data = None
+    
+    # Query input state
+    if 'main_query' not in st.session_state:
+        st.session_state.main_query = ""
+    
+    if 'reset_query_flag' not in st.session_state:
+        st.session_state.reset_query_flag = False
     
     if 'last_ingestion_time' not in st.session_state:
         st.session_state.last_ingestion_time = 'Never'
