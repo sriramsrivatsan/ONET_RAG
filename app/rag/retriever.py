@@ -55,7 +55,8 @@ class HybridRetriever:
         wants_task_details = any(phrase in query_lower for phrase in [
             'specific tasks', 'what tasks', 'which tasks', 'task descriptions',
             'tasks that', 'tasks involve', 'list tasks', 'show tasks', 'describe tasks',
-            'job tasks', 'work tasks', 'task list', 'tasks for', 'all tasks', 'all the tasks'
+            'job tasks', 'work tasks', 'task list', 'tasks for', 'all tasks', 'all the tasks',
+            'distinct tasks', 'unique tasks'
         ])
         
         # Detect if user is asking for tasks for a SPECIFIC occupation
@@ -434,14 +435,42 @@ class HybridRetriever:
         logger.info(f"Extracting occupation name from query: {original_query}", show_ui=False)
         
         # Extract potential occupation name from query
-        # Remove common query words
+        # Remove common query words - ORDER MATTERS (longer phrases first!)
         occupation_query = query_lower
-        for phrase in ['what are the tasks for', 'what tasks for', 'tasks for', 'all tasks for', 
-                       'list all tasks for', 'show tasks for', 'what are all the tasks for',
-                       'what are tasks for', 'tasks of', 'all tasks of', 'an ', 'a ', 'the ']:
+        
+        # Remove longer phrases first to avoid partial matches
+        removal_phrases = [
+            'what are the distinct tasks for',
+            'what are all the distinct tasks for',
+            'what are the unique tasks for',
+            'what are all the tasks for',
+            'what are the tasks for',
+            'show all distinct tasks for',
+            'show all tasks for',
+            'list all distinct tasks for',
+            'list all tasks for',
+            'what distinct tasks for',
+            'what tasks for',
+            'all distinct tasks for',
+            'all tasks for',
+            'distinct tasks for',
+            'unique tasks for',
+            'tasks for',
+            'what are tasks for',
+            'tasks of',
+            'all tasks of',
+            'distinct ',
+            'unique ',
+            'all ',
+            'an ',
+            'a ',
+            'the '
+        ]
+        
+        for phrase in removal_phrases:
             occupation_query = occupation_query.replace(phrase, '')
         
-        occupation_query = occupation_query.strip(' ?.')
+        occupation_query = occupation_query.strip(' ?.,')
         
         logger.info(f"Searching for occupation: '{occupation_query}'", show_ui=False)
         
@@ -464,16 +493,46 @@ class HybridRetriever:
         
         if len(matching_rows) == 0:
             logger.warning(f"No occupation found matching '{occupation_query}'", show_ui=True)
-            # Fall back to semantic search
+            
+            # Don't fall back to semantic search - return helpful error message
+            error_message = f"""I couldn't find an occupation matching "{occupation_query}" in the labor market database.
+
+**Possible reasons:**
+- The occupation name might be spelled differently in the database
+- Try a more general term (e.g., "director" instead of "art director")
+- Check if the occupation exists in the dataset
+
+**Suggestions:**
+- Try: "What occupations are in the dataset?" to see available occupations
+- Try: "Jobs related to art" for similar occupations
+- Search for a broader category
+
+The occupation you searched for: "{occupation_query}"
+Original query: "{original_query}"
+"""
+            
+            results['semantic_results'] = [{
+                'text': error_message,
+                'score': 1.0,
+                'metadata': {
+                    'error': 'occupation_not_found',
+                    'searched_term': occupation_query,
+                    'is_specific_occupation_task': True
+                }
+            }]
+            
             return results
         
         # Get the most common occupation title (in case of variations)
+        unique_occupations = matching_rows['ONET job title'].unique()
+        logger.info(f"Found {len(unique_occupations)} matching occupations: {list(unique_occupations)[:5]}", show_ui=False)
+        
         occupation_name = matching_rows['ONET job title'].value_counts().index[0]
         
         # Filter to this specific occupation
         occupation_df = self.df[self.df['ONET job title'] == occupation_name].copy()
         
-        logger.info(f"Found occupation: '{occupation_name}' with {len(occupation_df)} task entries", show_ui=False)
+        logger.info(f"Selected occupation: '{occupation_name}' with {len(occupation_df)} task entries", show_ui=True)
         
         # Get ALL distinct tasks for this occupation
         # Group by task description to get unique tasks with aggregated data
