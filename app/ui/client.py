@@ -512,6 +512,8 @@ class ClientView:
     def _process_followup_query(self, query: str):
         """Process follow-up query on filtered dataset"""
         
+        response = None  # Initialize to avoid UnboundLocalError
+        
         with st.spinner("🔄 Processing follow-up query on filtered dataset..."):
             try:
                 # Get the filtered dataset (already has reset index from initial query)
@@ -523,45 +525,14 @@ class ClientView:
                 
                 st.info(f"📊 Querying {len(filtered_df):,} filtered records")
                 
-                # CRITICAL FIX: Rebuild vector store with filtered dataset
-                # This ensures indices match between vector store and dataframe
-                with st.spinner("🔧 Indexing filtered dataset..."):
-                    from app.rag.vector_store import VectorStore
-                    
-                    # Create temporary vector store for filtered data
-                    temp_vector_store = VectorStore(collection_name="temp_followup_collection")
-                    
-                    # Add filtered documents to temporary vector store
-                    documents = []
-                    metadatas = []
-                    ids = []
-                    
-                    for idx, row in filtered_df.iterrows():
-                        # Create document text
-                        doc_text = f"{row.get('occupation', '')} {row.get('task', '')} {row.get('industry', '')}"
-                        documents.append(doc_text)
-                        
-                        # Metadata with RESET index
-                        metadatas.append({
-                            'row_index': idx,  # This now matches the reset index (0, 1, 2, ...)
-                            'occupation': str(row.get('occupation', '')),
-                            'industry': str(row.get('industry', '')),
-                            'task': str(row.get('task', ''))
-                        })
-                        
-                        ids.append(f"followup_{idx}")
-                    
-                    # Add to temporary vector store
-                    temp_vector_store.add_documents(
-                        documents=documents,
-                        metadatas=metadatas,
-                        ids=ids
-                    )
+                # SIMPLIFIED APPROACH: Use computational analytics on filtered dataset
+                # No need to rebuild vector store - just analyze the filtered data
                 
-                # Create retriever with temporary vector store and filtered dataset
+                # Create simple retriever that works on filtered dataframe only
+                # Uses pandas operations instead of vector search
                 retriever = HybridRetriever(
-                    vector_store=temp_vector_store,  # ✅ NEW vector store with filtered data
-                    dataframe=filtered_df,  # ✅ Filtered dataset with reset index
+                    vector_store=st.session_state.vector_store,  # Use existing (won't be queried)
+                    dataframe=filtered_df,  # Use filtered dataset
                     aggregator=st.session_state.aggregator
                 )
                 
@@ -575,6 +546,7 @@ class ClientView:
                 )
                 
                 # Process query on filtered dataset
+                # The retriever will use pandas operations on the filtered_df
                 k_results = len(filtered_df)
                 response = temp_processor.process_query(
                     query=query,
@@ -585,9 +557,36 @@ class ClientView:
                 st.markdown("### 📊 Follow-up Analysis Results")
                 st.markdown(response['answer'])
                 
+                # Display CSV if available
+                if response.get('csv_data') is not None:
+                    st.markdown("---")
+                    st.subheader("📥 Exportable Data")
+                    
+                    csv_df = response['csv_data']
+                    st.dataframe(csv_df)
+                    
+                    # Download button
+                    csv_buffer = StringIO()
+                    csv_df.to_csv(csv_buffer, index=False)
+                    csv_str = csv_buffer.getvalue()
+                    
+                    timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"followup_results_{timestamp}.csv"
+                    
+                    st.download_button(
+                        label="⬇️ Download Follow-up Results CSV",
+                        data=csv_str,
+                        file_name=filename,
+                        mime="text/csv"
+                    )
+                
                 # Update state for potential further follow-ups
                 st.session_state.last_query = query
                 st.session_state.last_query_results = response
+                
+                # Update filtered dataset if response has new filtered data
+                if response.get('retrieval_results', {}).get('filtered_dataframe') is not None:
+                    st.session_state.filtered_dataset = response['retrieval_results']['filtered_dataframe'].reset_index(drop=True)
                 
                 # Add to query history
                 if 'query_history' not in st.session_state:
@@ -598,9 +597,6 @@ class ClientView:
                     'timestamp': pd.Timestamp.now(),
                     'response': response
                 })
-                
-                # Clean up temporary vector store
-                temp_vector_store.delete_collection()
                 
                 st.success("✅ Follow-up query completed successfully!")
                 
