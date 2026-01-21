@@ -255,24 +255,41 @@ Your responses should be:
         # Add semantic search results
         if semantic_results:
             context_parts.append("=== SEMANTIC SEARCH RESULTS ===")
-            context_parts.append("⚠️ IMPORTANT: Each result below represents ONE TASK from the dataset")
-            context_parts.append("For task queries, LIST ALL these task descriptions in your response!")
-            context_parts.append("⚠️ VALIDATION: For 'create digital documents' queries, only include tasks that:")
-            context_parts.append("   - Contain action verbs: create, develop, design, prepare, write, produce")
-            context_parts.append("   - Contain document objects: document, report, spreadsheet, file, drawing, plan")
-            context_parts.append("   - If task only mentions analyze/review/coordinate without creating, EXCLUDE IT")
-            context_parts.append("📊 NOTE: The data is at TASK-INDUSTRY level, so the same task may appear")
-            context_parts.append("    multiple times for different industries. For tables, AGGREGATE by task-occupation.")
-            context_parts.append("💼 EMPLOYMENT: Each result has industry-specific employment values.")
-            context_parts.append("    For 'by industry' queries, use these specific values (not aggregated max).")
+            
+            # Check if this is occupation-level summary data (document creation queries)
+            first_result_text = semantic_results[0].get('text', '') if semantic_results else ''
+            is_occupation_summary = 'Total Employment:' in first_result_text and 'Number of Industries:' in first_result_text
+            
+            if is_occupation_summary:
+                context_parts.append("⚠️ IMPORTANT: These are OCCUPATION-LEVEL SUMMARIES (not individual tasks)")
+                context_parts.append("Each result represents ONE OCCUPATION with aggregated employment across all industries")
+                context_parts.append("💼 EMPLOYMENT DATA: Each occupation has a 'Employment' field showing TOTAL employment")
+                context_parts.append(f"📊 Total Occupations: {len(semantic_results)}")
+                context_parts.append("✅ List ALL occupations with their employment totals")
+                context_parts.append("✅ Calculate and show grand total employment across all occupations")
+                context_parts.append("✅ Show sample tasks for each occupation\n")
+            else:
+                context_parts.append("⚠️ IMPORTANT: Each result below represents ONE TASK from the dataset")
+                context_parts.append("For task queries, LIST ALL these task descriptions in your response!")
+                context_parts.append("⚠️ VALIDATION: For 'create digital documents' queries, only include tasks that:")
+                context_parts.append("   - Contain action verbs: create, develop, design, prepare, write, produce")
+                context_parts.append("   - Contain document objects: document, report, spreadsheet, file, drawing, plan")
+                context_parts.append("   - If task only mentions analyze/review/coordinate without creating, EXCLUDE IT")
+                context_parts.append("📊 NOTE: The data is at TASK-INDUSTRY level, so the same task may appear")
+                context_parts.append("    multiple times for different industries. For tables, AGGREGATE by task-occupation.")
+                context_parts.append("💼 EMPLOYMENT: Each result has industry-specific employment values.")
+                context_parts.append("    For 'by industry' queries, use these specific values (not aggregated max).")
+            
             context_parts.append(f"🎯 FOR TABLES: Create at least 10-15 rows using these {len(semantic_results)} results below.")
             context_parts.append("🌟 DIVERSITY: Show tasks from AT LEAST 5-10 DIFFERENT occupations (not all from one).")
-            context_parts.append("⏱️ TIME VALUES: Each result has its own ⏱️ Time value. When aggregating:")
-            context_parts.append("   - Group results by task description + occupation")
-            context_parts.append("   - Calculate AVERAGE time for that task-occupation pair")
-            context_parts.append("   - Count DISTINCT industries for that task-occupation pair")
-            context_parts.append("   - Result: Each table row has DIFFERENT time and industry count")
-            context_parts.append("   - DO NOT use same value (e.g., 2.5 hrs or 10 industries) for all rows\n")
+            
+            if not is_occupation_summary:
+                context_parts.append("⏱️ TIME VALUES: Each result has its own ⏱️ Time value. When aggregating:")
+                context_parts.append("   - Group results by task description + occupation")
+                context_parts.append("   - Calculate AVERAGE time for that task-occupation pair")
+                context_parts.append("   - Count DISTINCT industries for that task-occupation pair")
+                context_parts.append("   - Result: Each table row has DIFFERENT time and industry count")
+                context_parts.append("   - DO NOT use same value (e.g., 2.5 hrs or 10 industries) for all rows\n")
             
             for i, result in enumerate(semantic_results[:30], 1):  # Show up to 30 tasks for diversity
                 score = result.get('score', 0)

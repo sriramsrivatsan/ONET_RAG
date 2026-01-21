@@ -137,7 +137,7 @@ class HybridRetriever:
                         'score': 1.0 - (i * 0.01),
                         'metadata': {
                             'onet_job_title': row['ONET job title'],
-                            'total_employment': row['Employment'],
+                            'employment': row['Employment'],  # Changed from 'total_employment' to match template ✅
                             'industry_count': row['Industry title'],
                             'sample_tasks': row['Detailed job tasks']
                         }
