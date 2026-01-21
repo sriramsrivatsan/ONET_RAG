@@ -89,6 +89,12 @@ class HybridRetriever:
             any(verb in query_lower for verb in ['create', 'creating', 'develop', 'prepare', 'write', 'produce', 'generating'])
         )
         
+        # Detect breakdown queries that need comprehensive industry-occupation data
+        is_breakdown_query = (
+            any(kw in query_lower for kw in ['breakdown', 'by industry and occupation', 'tabular format', 'provide industry']) and
+            any(kw in query_lower for kw in ['document', 'digital document'])
+        )
+        
         
         # ROUTING DECISION: Choose response type based on query intent
         if is_document_creation_query and self.df is not None:
