@@ -296,17 +296,6 @@ Your responses should be:
             else:
                 context_parts.append("⚠️ Each result below represents data from the dataset")
                 context_parts.append(f"📊 Total Results: {len(semantic_results)}\n")
-            else:
-                context_parts.append("⚠️ IMPORTANT: Each result below represents ONE TASK from the dataset")
-                context_parts.append("For task queries, LIST ALL these task descriptions in your response!")
-                context_parts.append("⚠️ VALIDATION: For 'create digital documents' queries, only include tasks that:")
-                context_parts.append("   - Contain action verbs: create, develop, design, prepare, write, produce")
-                context_parts.append("   - Contain document objects: document, report, spreadsheet, file, drawing, plan")
-                context_parts.append("   - If task only mentions analyze/review/coordinate without creating, EXCLUDE IT")
-                context_parts.append("📊 NOTE: The data is at TASK-INDUSTRY level, so the same task may appear")
-                context_parts.append("    multiple times for different industries. For tables, AGGREGATE by task-occupation.")
-                context_parts.append("💼 EMPLOYMENT: Each result has industry-specific employment values.")
-                context_parts.append("    For 'by industry' queries, use these specific values (not aggregated max).")
             
             context_parts.append(f"🎯 FOR TABLES: Create at least 10-15 rows using these {len(semantic_results)} results below.")
             
