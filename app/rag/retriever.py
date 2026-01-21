@@ -97,7 +97,30 @@ class HybridRetriever:
         
         
         # ROUTING DECISION: Choose response type based on query intent
-        if is_document_creation_query and self.df is not None:
+        
+        # NEW: Handle general industry/occupation ranking queries (no task filter)
+        is_general_industry_ranking = (
+            wants_industry_summary and 
+            not is_document_creation_query and
+            any(kw in query_lower for kw in ['highest', 'most', 'largest', 'biggest', 'top', 'ranking', 'rank'])
+        )
+        
+        is_general_occupation_ranking = (
+            wants_occupation_summary and
+            not is_document_creation_query and
+            any(kw in query_lower for kw in ['highest', 'most', 'largest', 'biggest', 'top', 'ranking', 'rank', 'diverse', 'diversity'])
+        )
+        
+        if is_general_industry_ranking and self.df is not None:
+            logger.info("General industry ranking query - aggregating ALL industries", show_ui=False)
+            return self._create_general_industry_ranking(results, query_lower)
+        
+        elif is_general_occupation_ranking and self.df is not None:
+            logger.info("General occupation ranking query - aggregating ALL occupations", show_ui=False)
+            return self._create_general_occupation_ranking(results, query_lower)
+        
+        # Document creation queries (existing logic)
+        elif is_document_creation_query and self.df is not None:
             logger.info(f"Document creation query detected - using pattern matching", show_ui=False)
             
             # Pattern match on full dataset
@@ -611,6 +634,135 @@ class HybridRetriever:
         logger.info(f"Savings calculated for {len(savings_by_occ)} occupations", show_ui=False)
         
         return savings_by_occ
+    
+    def _create_general_industry_ranking(
+        self,
+        results: Dict[str, Any],
+        query_lower: str
+    ) -> Dict[str, Any]:
+        """
+        Handle general industry ranking queries like "Which industries have the highest employment?"
+        Works on FULL dataset, not filtered to specific tasks
+        """
+        logger.info(f"Creating general industry ranking from full dataset ({len(self.df)} rows)", show_ui=False)
+        
+        # Group by industry and aggregate TOTAL employment
+        industry_summary = self.df.groupby('Industry title').agg({
+            'Employment': 'sum',  # Total employment across ALL occupations and tasks
+            'ONET job title': 'nunique',  # Number of distinct occupations
+            'Detailed job tasks': lambda x: len(x)  # Number of tasks
+        }).reset_index()
+        
+        # Sort by employment descending
+        industry_summary = industry_summary.sort_values('Employment', ascending=False)
+        
+        logger.info(f"Found {len(industry_summary)} industries, top has {industry_summary.iloc[0]['Employment']:.2f}k workers", show_ui=False)
+        
+        # Store for CSV export
+        results['filtered_dataframe'] = industry_summary.copy()
+        
+        # Convert to semantic results format - one result per industry
+        for i, row in industry_summary.head(30).iterrows():
+            results['semantic_results'].append({
+                'text': f"Industry: {row['Industry title']}\nTotal Employment: {row['Employment']:.2f} thousand workers\nOccupations: {row['ONET job title']}\nTasks in Dataset: {row['Detailed job tasks']}",
+                'score': 1.0 - (i * 0.01),
+                'metadata': {
+                    'industry_title': row['Industry title'],
+                    'employment': row['Employment'],
+                    'occupation_count': row['ONET job title'],
+                    'task_count': row['Detailed job tasks'],
+                    'is_industry_summary': True
+                }
+            })
+        
+        # Create CSV data
+        results['computational_results']['industry_employment'] = industry_summary.rename(columns={
+            'Industry title': 'Industry',
+            'Employment': 'Total Employment (thousands)',
+            'ONET job title': 'Number of Occupations',
+            'Detailed job tasks': 'Number of Tasks'
+        })
+        
+        logger.info(f"Created {len(results['semantic_results'])} industry ranking results", show_ui=False)
+        
+        return results
+    
+    def _create_general_occupation_ranking(
+        self,
+        results: Dict[str, Any],
+        query_lower: str
+    ) -> Dict[str, Any]:
+        """
+        Handle general occupation ranking queries like "What occupations require the most diverse skill sets?"
+        Works on FULL dataset, not filtered to specific tasks
+        """
+        logger.info(f"Creating general occupation ranking from full dataset ({len(self.df)} rows)", show_ui=False)
+        
+        # Determine what to rank by
+        if 'diverse' in query_lower or 'diversity' in query_lower or 'skill' in query_lower:
+            # Rank by diversity (number of distinct tasks)
+            occ_summary = self.df.groupby('ONET job title').agg({
+                'Detailed job tasks': 'nunique',  # Number of DISTINCT tasks
+                'Employment': 'sum',  # Total employment across all industries
+                'Industry title': 'nunique'  # Number of industries occupation appears in
+            }).reset_index()
+            
+            # Sort by task diversity (number of distinct tasks)
+            occ_summary = occ_summary.sort_values('Detailed job tasks', ascending=False)
+            rank_criterion = 'Task Diversity'
+            
+        elif 'employment' in query_lower or 'workers' in query_lower:
+            # Rank by employment
+            occ_summary = self.df.groupby('ONET job title').agg({
+                'Employment': 'sum',
+                'Detailed job tasks': 'nunique',
+                'Industry title': 'nunique'
+            }).reset_index()
+            
+            occ_summary = occ_summary.sort_values('Employment', ascending=False)
+            rank_criterion = 'Employment'
+            
+        else:
+            # Default: rank by employment
+            occ_summary = self.df.groupby('ONET job title').agg({
+                'Employment': 'sum',
+                'Detailed job tasks': 'nunique',
+                'Industry title': 'nunique'
+            }).reset_index()
+            
+            occ_summary = occ_summary.sort_values('Employment', ascending=False)
+            rank_criterion = 'Employment'
+        
+        logger.info(f"Found {len(occ_summary)} occupations, ranking by {rank_criterion}", show_ui=False)
+        
+        # Store for CSV export
+        results['filtered_dataframe'] = occ_summary.copy()
+        
+        # Convert to semantic results format - one result per occupation
+        for i, row in occ_summary.head(30).iterrows():
+            results['semantic_results'].append({
+                'text': f"Occupation: {row['ONET job title']}\nTotal Employment: {row['Employment']:.2f} thousand workers\nDistinct Tasks: {row['Detailed job tasks']}\nIndustries: {row['Industry title']}",
+                'score': 1.0 - (i * 0.01),
+                'metadata': {
+                    'onet_job_title': row['ONET job title'],
+                    'employment': row['Employment'],
+                    'task_diversity': row['Detailed job tasks'],
+                    'industry_count': row['Industry title'],
+                    'is_occupation_summary': True
+                }
+            })
+        
+        # Create CSV data
+        results['computational_results']['occupation_employment'] = occ_summary.rename(columns={
+            'ONET job title': 'Occupation',
+            'Employment': 'Total Employment (thousands)',
+            'Detailed job tasks': 'Distinct Tasks',
+            'Industry title': 'Number of Industries'
+        })
+        
+        logger.info(f"Created {len(results['semantic_results'])} occupation ranking results", show_ui=False)
+        
+        return results
     
     def _semantic_retrieval(
         self,
