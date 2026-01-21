@@ -87,6 +87,11 @@ class ClientView:
         
         st.subheader("🔍 Query Interface")
         
+        # Show success message if New Query was just clicked
+        if st.session_state.get('show_new_query_message', False):
+            st.success("✅ Ready for new query! Enter your question above.")
+            st.session_state.show_new_query_message = False  # Clear flag
+        
         # Sample queries
         with st.expander("💡 Sample Queries", expanded=False):
             st.markdown("""
@@ -320,7 +325,13 @@ class ClientView:
     def _render_post_query_buttons(self):
         """Render post-query action buttons"""
         
-        if not st.session_state.show_post_query_buttons:
+        # Double-check: Only show if flag is set AND we have valid query results
+        if not st.session_state.get('show_post_query_buttons', False):
+            return
+        
+        if not st.session_state.get('last_query_results'):
+            # No valid results - hide buttons
+            st.session_state.show_post_query_buttons = False
             return
         
         st.subheader("🎯 Next Actions")
@@ -512,31 +523,53 @@ class ClientView:
     def _process_followup_query(self, query: str):
         """Process follow-up query on filtered dataset"""
         
-        response = None  # Initialize to avoid UnboundLocalError
-        
         with st.spinner("🔄 Processing follow-up query on filtered dataset..."):
             try:
-                # Get the filtered dataset (already has reset index from initial query)
+                # Get the filtered dataset
                 filtered_df = st.session_state.filtered_dataset
                 
                 if filtered_df is None or filtered_df.empty:
-                    st.error("No filtered dataset available. Please run an initial query first.")
+                    st.error("❌ No filtered dataset available. Please run an initial query first.")
                     return
                 
-                st.info(f"📊 Querying {len(filtered_df):,} filtered records")
+                # Ensure index is reset
+                filtered_df = filtered_df.reset_index(drop=True)
                 
-                # SIMPLIFIED APPROACH: Use computational analytics on filtered dataset
-                # No need to rebuild vector store - just analyze the filtered data
+                st.info(f"📊 Analyzing {len(filtered_df):,} filtered records (from previous query)")
                 
-                # Create simple retriever that works on filtered dataframe only
-                # Uses pandas operations instead of vector search
+                # CRITICAL FIX: For follow-up queries, we CANNOT use semantic search
+                # because the vector store has embeddings for the FULL dataset
+                # We must work ONLY with the filtered dataframe using pattern matching/computational
+                
+                # Analyze the query to determine what's needed
+                query_lower = query.lower()
+                
+                # Simple computational queries - no need for complex processing
+                if any(word in query_lower for word in ['total', 'sum', 'count', 'average', 'how many']):
+                    # Direct aggregation on filtered data
+                    result = self._simple_aggregation_on_filtered_data(filtered_df, query)
+                    if result:
+                        st.markdown("### 📊 Follow-up Analysis Results")
+                        st.markdown(result['answer'])
+                        
+                        if result.get('csv_data') is not None:
+                            self._display_csv_download(result['csv_data'], "followup")
+                        
+                        st.success("✅ Follow-up query completed!")
+                        return
+                
+                # For more complex queries, use pattern matching on filtered data
+                # Create a minimal retriever that works WITHOUT vector search
                 retriever = HybridRetriever(
-                    vector_store=st.session_state.vector_store,  # Use existing (won't be queried)
-                    dataframe=filtered_df,  # Use filtered dataset
+                    vector_store=st.session_state.vector_store,  # Don't use for search
+                    dataframe=filtered_df,  # Work on filtered data only
                     aggregator=st.session_state.aggregator
                 )
                 
-                # Create query processor with filtered data
+                # Explicitly set df to filtered data
+                retriever.df = filtered_df
+                
+                # Create temporary processor
                 api_key = config.get_openai_api_key()
                 response_builder = ResponseBuilder(api_key)
                 temp_processor = QueryProcessor(
@@ -545,97 +578,135 @@ class ClientView:
                     dataframe=filtered_df
                 )
                 
-                # Process query on filtered dataset
-                # The retriever will use pandas operations on the filtered_df
-                k_results = len(filtered_df)
+                # Process with k limited to filtered dataset size
+                k_results = min(len(filtered_df), 50)
+                
+                logger.info(
+                    f"Follow-up query on {len(filtered_df)} records (k={k_results})",
+                    show_ui=False
+                )
+                
                 response = temp_processor.process_query(
                     query=query,
                     k_results=k_results
                 )
                 
+                # Validate response
+                if not response or 'answer' not in response:
+                    st.error("❌ Query returned no results. Try rephrasing or run a new initial query.")
+                    return
+                
                 # Display results
                 st.markdown("### 📊 Follow-up Analysis Results")
                 st.markdown(response['answer'])
                 
+                # Show query details in expander
+                with st.expander("🔍 Query Details"):
+                    st.write(f"**Query:** {query}")
+                    st.write(f"**Filtered Records:** {len(filtered_df):,}")
+                    st.write(f"**Results Analyzed:** {k_results}")
+                
                 # Display CSV if available
                 if response.get('csv_data') is not None:
-                    st.markdown("---")
-                    st.subheader("📥 Exportable Data")
-                    
-                    csv_df = response['csv_data']
-                    st.dataframe(csv_df)
-                    
-                    # Download button
-                    csv_buffer = StringIO()
-                    csv_df.to_csv(csv_buffer, index=False)
-                    csv_str = csv_buffer.getvalue()
-                    
-                    timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
-                    filename = f"followup_results_{timestamp}.csv"
-                    
-                    st.download_button(
-                        label="⬇️ Download Follow-up Results CSV",
-                        data=csv_str,
-                        file_name=filename,
-                        mime="text/csv"
-                    )
+                    try:
+                        csv_df = response['csv_data']
+                        if len(csv_df) > 0:
+                            self._display_csv_download(csv_df, "followup")
+                        else:
+                            st.info("💡 No tabular data generated for this query")
+                    except Exception as e:
+                        logger.warning(f"Could not display CSV: {e}", show_ui=False)
                 
-                # Update state for potential further follow-ups
-                st.session_state.last_query = query
+                # Update state
+                st.session_state.last_query = f"[Follow-up] {query}"
                 st.session_state.last_query_results = response
                 
-                # Update filtered dataset if response has new filtered data
+                # Update filtered dataset if response refined it further
                 if response.get('retrieval_results', {}).get('filtered_dataframe') is not None:
-                    st.session_state.filtered_dataset = response['retrieval_results']['filtered_dataframe'].reset_index(drop=True)
+                    new_filtered = response['retrieval_results']['filtered_dataframe'].reset_index(drop=True)
+                    st.session_state.filtered_dataset = new_filtered
+                    logger.info(f"Refined filter to {len(new_filtered)} records", show_ui=False)
                 
-                # Add to query history
-                if 'query_history' not in st.session_state:
-                    st.session_state.query_history = []
-                
-                st.session_state.query_history.append({
-                    'query': f"[Follow-up] {query}",
-                    'timestamp': pd.Timestamp.now(),
-                    'response': response
-                })
-                
-                st.success("✅ Follow-up query completed successfully!")
+                st.success("✅ Follow-up query completed!")
                 
             except Exception as e:
-                logger.error(f"Follow-up query processing failed: {str(e)}", show_ui=True)
-                st.error(f"🚨 Follow-up query processing failed: {str(e)}")
-                import traceback
-                st.code(traceback.format_exc())
-                st.session_state.show_followup_interface = False
+                logger.error(f"Follow-up query failed: {str(e)}", show_ui=True)
+                st.error(f"❌ Follow-up query failed: {str(e)}")
+                st.info("💡 Try simplifying your question or click 'New Query' to start fresh")
                 
-                # Export option for follow-up results
-                if response.get('csv_data') is not None:
-                    st.markdown("---")
-                    st.subheader("📥 Follow-up Data Export")
-                    csv_df = response['csv_data']
-                    st.dataframe(csv_df)
-                    
-                    csv_buffer = StringIO()
-                    csv_df.to_csv(csv_buffer, index=False)
-                    csv_str = csv_buffer.getvalue()
-                    
-                    st.download_button(
-                        label="⬇️ Download Follow-up CSV",
-                        data=csv_str,
-                        file_name="followup_analysis.csv",
-                        mime="text/csv",
-                        key="download_followup"
-                    )
+                with st.expander("🔍 Error Details"):
+                    st.code(str(e))
+    
+    def _simple_aggregation_on_filtered_data(self, df: pd.DataFrame, query: str) -> Optional[Dict]:
+        """Handle simple aggregation queries directly without complex processing"""
+        query_lower = query.lower()
+        
+        try:
+            # Total employment
+            if 'total' in query_lower and 'employment' in query_lower:
+                total_emp = df['Employment'].sum()
+                answer = f"**Total Employment:** {total_emp:,.2f} thousand workers ({total_emp*1000:,.0f} people)"
+                return {
+                    'answer': answer,
+                    'csv_data': pd.DataFrame({'Metric': ['Total Employment'], 'Value': [total_emp]})
+                }
+            
+            # Count records
+            if any(word in query_lower for word in ['how many', 'count']):
+                if 'occupation' in query_lower:
+                    count = df['ONET job title'].nunique()
+                    answer = f"**Number of Occupations:** {count:,}"
+                elif 'industry' in query_lower or 'industries' in query_lower:
+                    count = df['Industry title'].nunique()
+                    answer = f"**Number of Industries:** {count:,}"
+                elif 'task' in query_lower:
+                    count = len(df)
+                    answer = f"**Number of Tasks:** {count:,}"
+                else:
+                    count = len(df)
+                    answer = f"**Number of Records:** {count:,}"
                 
-                # Restore original dataset
-                st.session_state.dataframe = original_df
-                
-                logger.info(f"Follow-up query processed successfully on {k_results} records")
-                
-            except Exception as e:
-                # Restore original dataset on error
-                st.session_state.dataframe = original_df
-                logger.error(f"Follow-up query processing failed: {str(e)}", show_ui=True)
-                st.error(f"Failed to process follow-up query: {str(e)}")
+                return {
+                    'answer': answer,
+                    'csv_data': pd.DataFrame({'Metric': ['Count'], 'Value': [count]})
+                }
+            
+            # Average wage
+            if 'average' in query_lower and 'wage' in query_lower:
+                avg_wage = df['Hourly wage'].mean()
+                answer = f"**Average Hourly Wage:** ${avg_wage:.2f}/hour"
+                return {
+                    'answer': answer,
+                    'csv_data': pd.DataFrame({'Metric': ['Average Wage'], 'Value': [avg_wage]})
+                }
+            
+            return None  # Not a simple query
+            
+        except Exception as e:
+            logger.warning(f"Simple aggregation failed: {e}", show_ui=False)
+            return None
+    
+    def _display_csv_download(self, csv_df: pd.DataFrame, prefix: str = "results"):
+        """Display CSV data and download button"""
+        st.markdown("---")
+        st.subheader("📥 Exportable Data")
+        
+        st.dataframe(csv_df, use_container_width=True)
+        
+        csv_buffer = StringIO()
+        csv_df.to_csv(csv_buffer, index=False)
+        csv_str = csv_buffer.getvalue()
+        
+        timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{prefix}_results_{timestamp}.csv"
+        
+        st.download_button(
+            label="⬇️ Download CSV",
+            data=csv_str,
+            file_name=filename,
+            mime="text/csv",
+            key=f"download_{prefix}_{timestamp}"
+        )
     
     def _process_enhanced_rag(self):
         """Process enhanced RAG with external data (stores in session state)"""
@@ -888,22 +959,37 @@ class ClientView:
             st.error(f"Failed to prepare export: {str(e)}")
     
     def _start_new_query(self):
-        """Reset state and start a new query"""
+        """Reset state and start a new query - complete UI reset"""
         
-        # Clear query-related state
+        logger.info("Resetting UI for new query", show_ui=False)
+        
+        # Clear ALL query-related state
         st.session_state.last_query = None
         st.session_state.last_query_results = None
         st.session_state.filtered_dataset = None
-        st.session_state.show_post_query_buttons = False
         st.session_state.enhanced_rag_data = None
-        st.session_state.run_enhanced_rag = False
         
-        # Clear persistent display flags
+        # Clear ALL display flags - this hides all buttons
+        st.session_state.show_post_query_buttons = False
         st.session_state.show_followup_interface = False
         st.session_state.show_download_section = False
+        st.session_state.run_enhanced_rag = False
         
-        # Increment widget version to create a new text area (this clears it)
+        # Clear query history
+        if 'query_history' in st.session_state:
+            st.session_state.query_history = []
+        
+        # Clear error states
+        if 'last_error' in st.session_state:
+            st.session_state.last_error = None
+        
+        # Increment widget version to force new text input widget
+        if 'query_widget_version' not in st.session_state:
+            st.session_state.query_widget_version = 0
         st.session_state.query_widget_version += 1
         
-        st.success("✅ Ready for new query! Enter your question above.")
+        # Set a flag to show success message AFTER rerun
+        st.session_state.show_new_query_message = True
+        
+        # Immediate rerun for clean reset - NO messages before this
         st.rerun()
