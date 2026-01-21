@@ -48,23 +48,51 @@ class HybridRetriever:
             'metadata': {}
         }
         
-        # Special handling for document creation task queries
-        # Use pattern matching instead of semantic search for better occupation diversity
+        # CRITICAL: Distinguish between TASK queries and JOB/OCCUPATION queries
+        # User might ask "What TASKS..." (wants task descriptions) vs "What JOBS..." (wants occupation summaries)
         query_lower = query.lower()
-        is_doc_task_query = (
-            routing_info['params'].get('task_query', False) and
-            any(keyword in query_lower for keyword in ['document', 'digital document', 'create document'])
+        
+        wants_task_details = any(phrase in query_lower for phrase in [
+            'specific tasks', 'what tasks', 'which tasks', 'task descriptions',
+            'tasks that', 'tasks involve', 'list tasks', 'show tasks', 'describe tasks',
+            'job tasks', 'work tasks', 'task list'
+        ])
+        
+        wants_occupation_summary = any(phrase in query_lower for phrase in [
+            'what jobs', 'which jobs', 'what occupations', 'which occupations',
+            'jobs that', 'occupations that', 'list jobs', 'list occupations',
+            'job titles', 'occupation titles', 'what positions'
+        ])
+        
+        wants_industry_summary = (
+            'by industry' in query_lower or 
+            'per industry' in query_lower or
+            ('industries' in query_lower and not wants_task_details) or
+            'which industries' in query_lower
         )
         
-        # Also detect breakdown queries that need comprehensive data
-        is_breakdown_query = (
-            any(kw in query_lower for kw in ['breakdown', 'by industry and occupation', 'tabular format', 'provide industry']) and
-            any(kw in query_lower for kw in ['document', 'digital document'])
+        # Detect time-related queries
+        wants_time_analysis = any(phrase in query_lower for phrase in [
+            'how much time', 'total time', 'time per week', 'hours per week',
+            'time spent', 'hours spent', 'average time', 'time each week'
+        ])
+        
+        # Detect savings/impact queries
+        wants_savings_analysis = any(phrase in query_lower for phrase in [
+            'time save', 'time saving', 'could save', 'shave off', 'reduce time',
+            'dollar saving', 'cost saving', 'financial saving', 'roi', 'return on investment'
+        ])
+        
+        # Special handling for document creation queries
+        is_document_creation_query = (
+            any(keyword in query_lower for keyword in ['document', 'digital document', 'create document', 'documents']) and
+            any(verb in query_lower for verb in ['create', 'creating', 'develop', 'prepare', 'write', 'produce', 'generating'])
         )
         
-        if (is_doc_task_query or is_breakdown_query) and self.df is not None:
-            query_type = "task query" if is_doc_task_query else "breakdown query"
-            logger.info(f"Document creation {query_type} detected - using pattern matching for diversity", show_ui=False)
+        
+        # ROUTING DECISION: Choose response type based on query intent
+        if is_document_creation_query and self.df is not None:
+            logger.info(f"Document creation query detected - using pattern matching", show_ui=False)
             
             # Pattern match on full dataset
             action_verbs = ['create', 'develop', 'design', 'prepare', 'write', 'produce']
@@ -79,29 +107,56 @@ class HybridRetriever:
             
             logger.info(f"Pattern matching found {len(matching_df)} rows", show_ui=False)
             
-            if is_breakdown_query:
-                # For breakdown queries, provide comprehensive industry-occupation employment data
-                logger.info("Breakdown query - providing ALL industry-occupation combinations", show_ui=False)
-                
-                # Get all unique industry-occupation pairs with employment
-                ind_occ_data = matching_df.groupby(['Industry title', 'ONET job title']).agg({
-                    'Employment': 'max',
-                    'Detailed job tasks': 'first'  # Sample task for reference
-                }).reset_index()
-                
-                # Sort by employment descending
-                ind_occ_data = ind_occ_data.sort_values('Employment', ascending=False)
-                
-                # Take top 30 combinations (covers all major occupations)
-                ind_occ_data = ind_occ_data.head(30)
-                
-                # Convert to semantic results format
-                for i, row in ind_occ_data.iterrows():
-                    results['semantic_results'].append({
-                        'text': f"Industry: {row['Industry title']}, Occupation: {row['ONET job title']}, Employment: {row['Employment']:.2f}k",
-                        'score': 1.0 - (i * 0.01),
-                        'metadata': {
-                            'industry_title': row['Industry title'],
+            # ROUTE 1: User wants TASK DETAILS (task descriptions with time)
+            if wants_task_details:
+                logger.info(f"Returning TASK DETAILS (task descriptions with time)", show_ui=False)
+                results = self._create_task_details_response(matching_df, results, query_lower)
+            
+            # ROUTE 2: User wants INDUSTRY BREAKDOWN
+            elif wants_industry_summary:
+                logger.info(f"Returning INDUSTRY SUMMARY", show_ui=False)
+                results = self._create_industry_summary_response(matching_df, results, query_lower)
+            
+            # ROUTE 3: User wants OCCUPATION BREAKDOWN (default for job queries)
+            elif wants_occupation_summary or not wants_task_details:
+                logger.info(f"Returning OCCUPATION SUMMARY", show_ui=False)
+                results = self._create_occupation_summary_response(matching_df, results, query_lower)
+            
+        
+        # Handle breakdown queries (separate path)
+        elif is_breakdown_query and self.df is not None:
+            logger.info("Breakdown query - providing ALL industry-occupation combinations", show_ui=False)
+            
+            # Pattern match for breakdown queries
+            action_verbs = ['create', 'develop', 'design', 'prepare', 'write', 'produce']
+            object_keywords = ['document', 'report', 'spreadsheet', 'file', 'drawing', 'plan']
+            
+            matching_df = self.df[
+                self.df['Detailed job tasks'].apply(
+                    lambda x: any(verb in str(x).lower() for verb in action_verbs) and 
+                              any(kw in str(x).lower() for kw in object_keywords)
+                )
+            ]
+            
+            # Get all unique industry-occupation pairs with employment
+            ind_occ_data = matching_df.groupby(['Industry title', 'ONET job title']).agg({
+                'Employment': 'max',
+                'Detailed job tasks': 'first'  # Sample task for reference
+            }).reset_index()
+            
+            # Sort by employment descending
+            ind_occ_data = ind_occ_data.sort_values('Employment', ascending=False)
+            
+            # Take top 30 combinations (covers all major occupations)
+            ind_occ_data = ind_occ_data.head(30)
+            
+            # Convert to semantic results format
+            for i, row in ind_occ_data.iterrows():
+                results['semantic_results'].append({
+                    'text': f"Industry: {row['Industry title']}, Occupation: {row['ONET job title']}, Employment: {row['Employment']:.2f}k",
+                    'score': 1.0 - (i * 0.01),
+                    'metadata': {
+                        'industry_title': row['Industry title'],
                             'onet_job_title': row['ONET job title'],
                             'employment': row['Employment'],
                             'task_sample': row['Detailed job tasks']
@@ -250,6 +305,307 @@ class HybridRetriever:
         
         return results
     
+    def _create_task_details_response(
+        self,
+        matching_df: pd.DataFrame,
+        results: Dict[str, Any],
+        query_lower: str
+    ) -> Dict[str, Any]:
+        """
+        Create task-level detailed response with actual task descriptions and time data
+        
+        Returns task descriptions (not occupation summaries) with:
+        - Full task description text
+        - Time per week spent on task
+        - Occupation performing the task
+        - Industry information
+        - Employment data
+        """
+        logger.info(f"Creating task details response from {len(matching_df)} matching rows", show_ui=False)
+        
+        # Sort by time spent (descending) to prioritize important tasks
+        sorted_df = matching_df.sort_values(
+            'Hours per week spent on task',
+            ascending=False,
+            na_position='last'
+        )
+        
+        # Get diverse task sample: max 3 per occupation for diversity
+        task_details = []
+        occ_counts = {}
+        
+        for idx, row in sorted_df.iterrows():
+            occ = row.get('ONET job title', 'Unknown')
+            
+            # Limit per occupation for diversity across occupations
+            if occ_counts.get(occ, 0) < 3:
+                task_text = row.get('Detailed job tasks', '')
+                
+                # Create rich metadata
+                metadata = {
+                    'onet_job_title': occ,
+                    'industry_title': row.get('Industry title'),
+                    'hours_per_week_spent_on_task': row.get('Hours per week spent on task'),
+                    'employment': row.get('Employment'),
+                    'hourly_wage': row.get('Hourly wage'),
+                    'row_index': idx
+                }
+                
+                # Add to results
+                task_details.append({
+                    'text': task_text,
+                    'score': 1.0 - (len(task_details) * 0.01),
+                    'metadata': metadata
+                })
+                
+                occ_counts[occ] = occ_counts.get(occ, 0) + 1
+            
+            # Stop at 30 tasks for reasonable response size
+            if len(task_details) >= 30:
+                break
+        
+        results['semantic_results'] = task_details
+        
+        # Store filtered dataframe for CSV export
+        results['filtered_dataframe'] = matching_df.copy().reset_index(drop=True)
+        
+        # Calculate time statistics for task queries
+        if 'time' in query_lower or 'hour' in query_lower:
+            time_stats = self._calculate_time_statistics(matching_df)
+            results['computational_results']['time_analysis'] = time_stats
+        
+        logger.info(f"Created {len(task_details)} task detail results from {len(occ_counts)} occupations", show_ui=False)
+        
+        return results
+    
+    def _create_industry_summary_response(
+        self,
+        matching_df: pd.DataFrame,
+        results: Dict[str, Any],
+        query_lower: str
+    ) -> Dict[str, Any]:
+        """Create industry-level aggregated response"""
+        
+        logger.info(f"Creating industry summary from {len(matching_df)} rows", show_ui=False)
+        
+        ind_summary = matching_df.groupby('Industry title').agg({
+            'Employment': 'sum',
+            'ONET job title': 'nunique',
+            'Detailed job tasks': lambda x: len(x),
+            'Hours per week spent on task': 'mean',
+            'Hourly wage': 'mean'
+        }).reset_index()
+        
+        ind_summary = ind_summary.sort_values('Employment', ascending=False)
+        
+        results['filtered_dataframe'] = matching_df.copy().reset_index(drop=True)
+        
+        # Convert to semantic results
+        for i, row in ind_summary.iterrows():
+            results['semantic_results'].append({
+                'text': f"Industry: {row['Industry title']}\nTotal Employment: {row['Employment']:.2f}k workers\nNumber of Occupations: {row['ONET job title']}\nNumber of Tasks: {row['Detailed job tasks']}\nAvg Hours per Week: {row['Hours per week spent on task']:.1f}",
+                'score': 1.0 - (i * 0.01),
+                'metadata': {
+                    'industry_title': row['Industry title'],
+                    'employment': row['Employment'],
+                    'occupation_count': row['ONET job title'],
+                    'task_count': row['Detailed job tasks'],
+                    'avg_hours_per_week': row['Hours per week spent on task'],
+                    'avg_hourly_wage': row['Hourly wage']
+                }
+            })
+        
+        # Create CSV data
+        results['computational_results']['industry_employment'] = ind_summary.rename(columns={
+            'Industry title': 'Industry',
+            'Employment': 'Total Employment (thousands)',
+            'ONET job title': 'Number of Occupations',
+            'Detailed job tasks': 'Number of Tasks',
+            'Hours per week spent on task': 'Avg Hours per Week',
+            'Hourly wage': 'Avg Hourly Wage'
+        })
+        
+        # Calculate industry proportions
+        industry_prop_results = self._compute_industry_proportions(
+            matching_df,
+            attribute_name="matching workers"
+        )
+        if industry_prop_results:
+            results['computational_results']['industry_proportions'] = industry_prop_results
+        
+        logger.info(f"Created {len(results['semantic_results'])} industry-level results", show_ui=False)
+        
+        return results
+    
+    def _create_occupation_summary_response(
+        self,
+        matching_df: pd.DataFrame,
+        results: Dict[str, Any],
+        query_lower: str
+    ) -> Dict[str, Any]:
+        """Create occupation-level aggregated response"""
+        
+        logger.info(f"Creating occupation summary from {len(matching_df)} rows", show_ui=False)
+        
+        occ_summary = matching_df.groupby('ONET job title').agg({
+            'Employment': 'sum',
+            'Industry title': 'nunique',
+            'Detailed job tasks': lambda x: '; '.join(x.unique()[:3]),
+            'Hours per week spent on task': 'mean',
+            'Hourly wage': 'mean'
+        }).reset_index()
+        
+        occ_summary = occ_summary.sort_values('Employment', ascending=False)
+        
+        results['filtered_dataframe'] = matching_df.copy().reset_index(drop=True)
+        
+        # Convert to semantic results
+        for i, row in occ_summary.iterrows():
+            results['semantic_results'].append({
+                'text': f"Occupation: {row['ONET job title']}\nTotal Employment: {row['Employment']:.2f}k workers\nNumber of Industries: {row['Industry title']}\nAvg Hours per Week: {row['Hours per week spent on task']:.1f}\nSample Tasks: {row['Detailed job tasks'][:200]}...",
+                'score': 1.0 - (i * 0.01),
+                'metadata': {
+                    'onet_job_title': row['ONET job title'],
+                    'employment': row['Employment'],
+                    'industry_count': row['Industry title'],
+                    'sample_tasks': row['Detailed job tasks'],
+                    'avg_hours_per_week': row['Hours per week spent on task'],
+                    'avg_hourly_wage': row['Hourly wage']
+                }
+            })
+        
+        # Create CSV data
+        results['computational_results']['occupation_employment'] = occ_summary.rename(columns={
+            'ONET job title': 'Occupation',
+            'Employment': 'Total Employment (thousands)',
+            'Industry title': 'Number of Industries',
+            'Detailed job tasks': 'Sample Tasks',
+            'Hours per week spent on task': 'Avg Hours per Week',
+            'Hourly wage': 'Avg Hourly Wage'
+        })
+        
+        logger.info(f"Created {len(results['semantic_results'])} occupation-level results", show_ui=False)
+        
+        return results
+    
+    def _calculate_time_statistics(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """
+        Calculate comprehensive time statistics for task queries
+        Phase 2 implementation
+        """
+        logger.info(f"Calculating time statistics for {len(df)} rows", show_ui=False)
+        
+        # Filter rows with time data
+        df_with_time = df[df['Hours per week spent on task'].notna()].copy()
+        
+        if len(df_with_time) == 0:
+            return {'error': 'No time data available'}
+        
+        # Overall statistics
+        stats = {
+            'avg_hours_per_worker': float(df_with_time['Hours per week spent on task'].mean()),
+            'median_hours_per_worker': float(df_with_time['Hours per week spent on task'].median()),
+            'min_hours': float(df_with_time['Hours per week spent on task'].min()),
+            'max_hours': float(df_with_time['Hours per week spent on task'].max()),
+            'total_tasks_analyzed': len(df_with_time)
+        }
+        
+        # Calculate total worker-hours if employment data available
+        df_complete = df_with_time[df_with_time['Employment'].notna()].copy()
+        if len(df_complete) > 0:
+            # Employment is in thousands
+            total_hours = (df_complete['Employment'] * df_complete['Hours per week spent on task']).sum() * 1000
+            stats['total_worker_hours_per_week'] = float(total_hours)
+        
+        # Time by occupation
+        time_by_occ = df_with_time.groupby('ONET job title').agg({
+            'Hours per week spent on task': 'mean',
+            'Employment': 'sum'
+        }).reset_index()
+        
+        time_by_occ = time_by_occ.sort_values('Hours per week spent on task', ascending=False)
+        stats['by_occupation'] = time_by_occ.head(15).to_dict('records')
+        
+        return stats
+    
+    def _estimate_time_and_cost_savings(
+        self,
+        df: pd.DataFrame,
+        savings_percentage: float = 0.4
+    ) -> pd.DataFrame:
+        """
+        Estimate time and dollar savings from automation
+        Phases 2 & 3 implementation
+        
+        Args:
+            df: DataFrame with task/occupation data
+            savings_percentage: Assumed percentage of time saved (default 40%)
+        
+        Returns:
+            DataFrame with savings analysis by occupation
+        """
+        logger.info(f"Estimating savings at {savings_percentage*100}% for {len(df)} rows", show_ui=False)
+        
+        # Group by occupation and aggregate
+        savings_by_occ = df.groupby('ONET job title').agg({
+            'Hours per week spent on task': 'mean',
+            'Employment': 'sum',
+            'Hourly wage': 'mean'
+        }).reset_index()
+        
+        # Calculate time savings
+        savings_by_occ['time_saved_per_worker'] = (
+            savings_by_occ['Hours per week spent on task'] * savings_percentage
+        )
+        
+        # Total hours saved (across all workers)
+        savings_by_occ['total_hours_saved_per_week'] = (
+            savings_by_occ['Employment'] * 
+            savings_by_occ['time_saved_per_worker'] * 
+            1000  # Employment in thousands
+        )
+        
+        # Dollar savings (if wage data available)
+        wage_available = savings_by_occ['Hourly wage'].notna()
+        savings_by_occ.loc[wage_available, 'weekly_dollar_savings'] = (
+            savings_by_occ.loc[wage_available, 'total_hours_saved_per_week'] * 
+            savings_by_occ.loc[wage_available, 'Hourly wage']
+        )
+        
+        # Annual savings
+        savings_by_occ.loc[wage_available, 'annual_dollar_savings'] = (
+            savings_by_occ.loc[wage_available, 'weekly_dollar_savings'] * 52
+        )
+        
+        # Sort by dollar savings (or hours if no wage data)
+        if wage_available.any():
+            savings_by_occ = savings_by_occ.sort_values(
+                'weekly_dollar_savings',
+                ascending=False,
+                na_position='last'
+            )
+        else:
+            savings_by_occ = savings_by_occ.sort_values(
+                'total_hours_saved_per_week',
+                ascending=False
+            )
+        
+        # Rename columns for clarity
+        savings_by_occ = savings_by_occ.rename(columns={
+            'ONET job title': 'Occupation',
+            'Hours per week spent on task': 'Current Hours per Week',
+            'Employment': 'Workers (thousands)',
+            'Hourly wage': 'Avg Hourly Wage',
+            'time_saved_per_worker': 'Hours Saved per Worker',
+            'total_hours_saved_per_week': 'Total Hours Saved per Week',
+            'weekly_dollar_savings': 'Weekly Dollar Savings',
+            'annual_dollar_savings': 'Annual Dollar Savings'
+        })
+        
+        logger.info(f"Savings calculated for {len(savings_by_occ)} occupations", show_ui=False)
+        
+        return savings_by_occ
+    
     def _semantic_retrieval(
         self,
         query: str,
@@ -386,8 +742,67 @@ class HybridRetriever:
             if task_analysis:
                 computational_results['task_analysis'] = task_analysis
         
-        # Special handling for "what jobs" pattern matching queries
+        # PHASE 2: Time analysis for time-related queries
         query_lower = query.lower()
+        if any(phrase in query_lower for phrase in ['how much time', 'total time', 'time per week', 
+                                                      'hours per week', 'time spent', 'hours spent']):
+            logger.info("Time analysis query detected", show_ui=False)
+            time_analysis = self._calculate_time_statistics(df_subset)
+            if time_analysis:
+                computational_results['time_analysis'] = time_analysis
+                logger.info("Time analysis computed successfully", show_ui=False)
+        
+        # PHASE 2 & 3: Time savings and dollar savings analysis
+        if any(phrase in query_lower for phrase in ['time save', 'time saving', 'could save', 'shave off',
+                                                      'dollar saving', 'cost saving', 'financial saving',
+                                                      'roi', 'return on investment']):
+            logger.info("Savings analysis query detected", show_ui=False)
+            
+            # Determine savings percentage (default 40%)
+            savings_pct = 0.4
+            if 'half' in query_lower or '50%' in query_lower or '50 percent' in query_lower:
+                savings_pct = 0.5
+            elif '30%' in query_lower or '30 percent' in query_lower:
+                savings_pct = 0.3
+            elif '25%' in query_lower or '25 percent' in query_lower:
+                savings_pct = 0.25
+            
+            savings_analysis = self._estimate_time_and_cost_savings(df_subset, savings_pct)
+            if savings_analysis is not None and len(savings_analysis) > 0:
+                computational_results['savings_analysis'] = savings_analysis.to_dict('records')
+                computational_results['savings_summary'] = {
+                    'assumption_pct': savings_pct * 100,
+                    'total_occupations': len(savings_analysis)
+                }
+                
+                # Calculate grand totals if wage data available
+                if 'Weekly Dollar Savings' in savings_analysis.columns:
+                    weekly_total = savings_analysis['Weekly Dollar Savings'].sum()
+                    annual_total = savings_analysis['Annual Dollar Savings'].sum()
+                    computational_results['savings_summary']['total_weekly_savings'] = float(weekly_total)
+                    computational_results['savings_summary']['total_annual_savings'] = float(annual_total)
+                
+                # Total hours saved
+                if 'Total Hours Saved per Week' in savings_analysis.columns:
+                    total_hours = savings_analysis['Total Hours Saved per Week'].sum()
+                    computational_results['savings_summary']['total_hours_saved_per_week'] = float(total_hours)
+                
+                logger.info(f"Savings analysis computed for {len(savings_analysis)} occupations", show_ui=False)
+        
+        # Support for "top N by savings" queries
+        if any(phrase in query_lower for phrase in ['top', 'top-', 'top 10', 'top 5', 'most time']):
+            # Extract N if specified
+            import re
+            top_match = re.search(r'top[- ]?(\d+)', query_lower)
+            if top_match:
+                top_n = int(top_match.group(1))
+                if 'savings_analysis' in computational_results:
+                    # Already computed, just limit to top N
+                    savings_df = pd.DataFrame(computational_results['savings_analysis'])
+                    computational_results['top_savings'] = savings_df.head(top_n).to_dict('records')
+                    logger.info(f"Top {top_n} savings computed", show_ui=False)
+        
+        # Special handling for "what jobs" pattern matching queries
         
         # Detect if this is a TASK query vs JOB query
         is_task_query = any(phrase in query_lower for phrase in ['specific tasks', 'what tasks', 'which tasks', 
@@ -671,6 +1086,335 @@ class HybridRetriever:
         except Exception as e:
             logger.error(f"Error computing industry proportions: {str(e)}", show_ui=False)
             return {}
+    
+    def _create_task_details_response(
+        self,
+        matching_df: pd.DataFrame,
+        results: Dict[str, Any],
+        query_lower: str
+    ) -> Dict[str, Any]:
+        """
+        Create task-level detailed response with actual task descriptions and time data
+        For queries like: "What are the specific tasks that involve...?"
+        """
+        logger.info(f"Creating task details response from {len(matching_df)} rows", show_ui=False)
+        
+        # Get diverse task sample: max 3 per occupation for diversity
+        task_details = []
+        occ_counts = {}
+        
+        # Sort by time spent (descending) to prioritize important tasks
+        # Handle NaN values in Hours per week
+        sorted_df = matching_df.copy()
+        sorted_df['Hours per week spent on task'] = pd.to_numeric(
+            sorted_df['Hours per week spent on task'], 
+            errors='coerce'
+        )
+        sorted_df = sorted_df.sort_values(
+            'Hours per week spent on task', 
+            ascending=False, 
+            na_position='last'
+        )
+        
+        # Store filtered dataframe for CSV export
+        results['filtered_dataframe'] = matching_df.copy().reset_index(drop=True)
+        
+        for idx, row in sorted_df.iterrows():
+            occ = row.get('ONET job title', 'Unknown')
+            
+            # Limit per occupation for diversity (max 3 tasks per occupation)
+            if occ_counts.get(occ, 0) < 3:
+                # Get time data
+                hours = row.get('Hours per week spent on task')
+                try:
+                    hours_float = float(hours) if pd.notna(hours) else None
+                except (ValueError, TypeError):
+                    hours_float = None
+                
+                # Get employment data
+                employment = row.get('Employment')
+                try:
+                    emp_float = float(employment) if pd.notna(employment) else None
+                except (ValueError, TypeError):
+                    emp_float = None
+                
+                task_details.append({
+                    'text': str(row.get('Detailed job tasks', '')),
+                    'score': 1.0 - (len(task_details) * 0.01),
+                    'metadata': {
+                        'onet_job_title': occ,
+                        'industry_title': str(row.get('Industry title', '')),
+                        'hours_per_week_spent_on_task': hours_float,
+                        'employment': emp_float,
+                        'hourly_wage': float(row.get('Hourly wage')) if pd.notna(row.get('Hourly wage')) else None,
+                        'row_index': idx
+                    }
+                })
+                occ_counts[occ] = occ_counts.get(occ, 0) + 1
+            
+            # Limit total tasks to 30 for response size
+            if len(task_details) >= 30:
+                break
+        
+        results['semantic_results'] = task_details
+        
+        logger.info(
+            f"Created {len(task_details)} task details from {len(occ_counts)} occupations",
+            show_ui=False
+        )
+        
+        # Add time analysis if requested
+        if any(phrase in query_lower for phrase in ['how much time', 'total time', 'time per week']):
+            results['computational_results']['time_analysis'] = self._compute_time_analysis(
+                matching_df,
+                task_details
+            )
+        
+        return results
+    
+    def _create_industry_summary_response(
+        self,
+        matching_df: pd.DataFrame,
+        results: Dict[str, Any],
+        query_lower: str
+    ) -> Dict[str, Any]:
+        """Create industry-level aggregation response"""
+        logger.info(f"Creating industry summary from {len(matching_df)} rows", show_ui=False)
+        
+        ind_summary = matching_df.groupby('Industry title').agg({
+            'Employment': 'sum',
+            'ONET job title': 'nunique',
+            'Detailed job tasks': lambda x: len(x)
+        }).reset_index()
+        
+        ind_summary = ind_summary.sort_values('Employment', ascending=False)
+        
+        results['filtered_dataframe'] = matching_df.copy().reset_index(drop=True)
+        
+        for i, row in ind_summary.iterrows():
+            results['semantic_results'].append({
+                'text': f"Industry: {row['Industry title']}\nTotal Employment: {row['Employment']:.2f}k workers\nNumber of Occupations: {row['ONET job title']}\nNumber of Tasks: {row['Detailed job tasks']}",
+                'score': 1.0 - (i * 0.01),
+                'metadata': {
+                    'industry_title': row['Industry title'],
+                    'employment': row['Employment'],
+                    'occupation_count': row['ONET job title'],
+                    'task_count': row['Detailed job tasks']
+                }
+            })
+        
+        results['computational_results']['industry_employment'] = ind_summary.rename(columns={
+            'Industry title': 'Industry',
+            'Employment': 'Total Employment (thousands)',
+            'ONET job title': 'Number of Occupations',
+            'Detailed job tasks': 'Number of Tasks'
+        })
+        
+        # Calculate industry proportions
+        industry_prop_results = self._compute_industry_proportions(
+            matching_df,
+            attribute_name="matching workers"
+        )
+        if industry_prop_results:
+            results['computational_results']['industry_proportions'] = industry_prop_results
+        
+        return results
+    
+    def _create_occupation_summary_response(
+        self,
+        matching_df: pd.DataFrame,
+        results: Dict[str, Any],
+        query_lower: str
+    ) -> Dict[str, Any]:
+        """Create occupation-level aggregation response"""
+        logger.info(f"Creating occupation summary from {len(matching_df)} rows", show_ui=False)
+        
+        occ_summary = matching_df.groupby('ONET job title').agg({
+            'Employment': 'sum',
+            'Industry title': 'nunique',
+            'Detailed job tasks': lambda x: '; '.join(x.unique()[:3])
+        }).reset_index()
+        
+        occ_summary = occ_summary.sort_values('Employment', ascending=False)
+        
+        results['filtered_dataframe'] = matching_df.copy().reset_index(drop=True)
+        
+        for i, row in occ_summary.iterrows():
+            results['semantic_results'].append({
+                'text': f"Occupation: {row['ONET job title']}\nTotal Employment: {row['Employment']:.2f}k workers\nNumber of Industries: {row['Industry title']}\nSample Tasks: {row['Detailed job tasks'][:200]}...",
+                'score': 1.0 - (i * 0.01),
+                'metadata': {
+                    'onet_job_title': row['ONET job title'],
+                    'employment': row['Employment'],
+                    'industry_count': row['Industry title'],
+                    'sample_tasks': row['Detailed job tasks']
+                }
+            })
+        
+        results['computational_results']['occupation_employment'] = occ_summary.rename(columns={
+            'ONET job title': 'Occupation',
+            'Employment': 'Total Employment (thousands)',
+            'Industry title': 'Number of Industries',
+            'Detailed job tasks': 'Sample Tasks'
+        })
+        
+        return results
+    
+    def _compute_time_analysis(
+        self,
+        df: pd.DataFrame,
+        task_details: List[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Calculate time-related statistics
+        For queries like: "How much time per week do workers spend on these tasks?"
+        """
+        logger.info(f"Computing time analysis for {len(df)} rows", show_ui=False)
+        
+        # Ensure Hours per week is numeric
+        df_copy = df.copy()
+        df_copy['Hours per week spent on task'] = pd.to_numeric(
+            df_copy['Hours per week spent on task'],
+            errors='coerce'
+        )
+        df_copy['Employment'] = pd.to_numeric(df_copy['Employment'], errors='coerce')
+        
+        # Remove NaN values for calculations
+        df_with_time = df_copy[df_copy['Hours per week spent on task'].notna()]
+        
+        if len(df_with_time) == 0:
+            return {'error': 'No time data available'}
+        
+        # Overall statistics
+        time_stats = {
+            'avg_hours_per_worker': float(df_with_time['Hours per week spent on task'].mean()),
+            'median_hours_per_worker': float(df_with_time['Hours per week spent on task'].median()),
+            'min_hours': float(df_with_time['Hours per week spent on task'].min()),
+            'max_hours': float(df_with_time['Hours per week spent on task'].max()),
+            'total_tasks_with_time_data': len(df_with_time)
+        }
+        
+        # Calculate total worker-hours per week
+        # Total worker-hours = sum(employment × hours per task)
+        df_with_both = df_with_time[df_with_time['Employment'].notna()]
+        if len(df_with_both) > 0:
+            # Employment is in thousands
+            total_worker_hours = (
+                df_with_both['Employment'] * 
+                df_with_both['Hours per week spent on task']
+            ).sum() * 1000  # Convert from thousands
+            time_stats['total_worker_hours_per_week'] = float(total_worker_hours)
+        
+        # By occupation
+        time_by_occ = df_with_time.groupby('ONET job title').agg({
+            'Hours per week spent on task': 'mean',
+            'Employment': 'sum'
+        }).reset_index()
+        
+        time_by_occ = time_by_occ.sort_values('Hours per week spent on task', ascending=False)
+        
+        # Calculate total hours per occupation
+        time_by_occ_with_emp = time_by_occ[time_by_occ['Employment'].notna()].copy()
+        if len(time_by_occ_with_emp) > 0:
+            time_by_occ_with_emp['total_hours'] = (
+                time_by_occ_with_emp['Employment'] * 
+                time_by_occ_with_emp['Hours per week spent on task'] * 
+                1000  # Employment in thousands
+            )
+        
+        return {
+            'overall': time_stats,
+            'by_occupation': time_by_occ.head(15).to_dict('records'),
+            'by_occupation_with_totals': time_by_occ_with_emp.head(15).to_dict('records') if len(time_by_occ_with_emp) > 0 else []
+        }
+    
+    def _estimate_time_savings(
+        self,
+        df: pd.DataFrame,
+        savings_percentage: float = 0.4
+    ) -> pd.DataFrame:
+        """
+        Estimate time savings from automation
+        For queries like: "How much time could this agent save?"
+        
+        Args:
+            df: DataFrame with task data
+            savings_percentage: Assumed % of time saved (default 40%)
+        
+        Returns:
+            DataFrame with time savings by occupation
+        """
+        logger.info(
+            f"Estimating time savings at {savings_percentage*100}% for {len(df)} rows",
+            show_ui=False
+        )
+        
+        # Ensure numeric columns
+        df_copy = df.copy()
+        df_copy['Hours per week spent on task'] = pd.to_numeric(
+            df_copy['Hours per week spent on task'],
+            errors='coerce'
+        )
+        df_copy['Employment'] = pd.to_numeric(df_copy['Employment'], errors='coerce')
+        df_copy['Hourly wage'] = pd.to_numeric(df_copy['Hourly wage'], errors='coerce')
+        
+        # Group by occupation
+        savings_by_occ = df_copy.groupby('ONET job title').agg({
+            'Hours per week spent on task': 'mean',
+            'Employment': 'sum',
+            'Hourly wage': 'mean'
+        }).reset_index()
+        
+        # Calculate savings
+        savings_by_occ['time_saved_per_worker'] = (
+            savings_by_occ['Hours per week spent on task'] * savings_percentage
+        )
+        
+        # Total hours saved across all workers in occupation
+        savings_by_occ['total_hours_saved_per_week'] = (
+            savings_by_occ['Employment'] * 
+            savings_by_occ['time_saved_per_worker'] * 
+            1000  # Employment in thousands
+        )
+        
+        # Dollar savings (if wage data available)
+        wage_available = savings_by_occ['Hourly wage'].notna()
+        savings_by_occ.loc[wage_available, 'weekly_dollar_savings'] = (
+            savings_by_occ.loc[wage_available, 'total_hours_saved_per_week'] * 
+            savings_by_occ.loc[wage_available, 'Hourly wage']
+        )
+        
+        # Annual savings
+        savings_by_occ.loc[wage_available, 'annual_dollar_savings'] = (
+            savings_by_occ.loc[wage_available, 'weekly_dollar_savings'] * 52
+        )
+        
+        # Sort by weekly dollar savings (or total hours if no wage data)
+        if wage_available.any():
+            savings_by_occ = savings_by_occ.sort_values(
+                'weekly_dollar_savings',
+                ascending=False,
+                na_position='last'
+            )
+        else:
+            savings_by_occ = savings_by_occ.sort_values(
+                'total_hours_saved_per_week',
+                ascending=False
+            )
+        
+        # Clean column names for display
+        savings_by_occ = savings_by_occ.rename(columns={
+            'ONET job title': 'Occupation',
+            'Hours per week spent on task': 'Current Hours/Week',
+            'Employment': 'Workers (thousands)',
+            'Hourly wage': 'Avg Hourly Wage',
+            'time_saved_per_worker': 'Hours Saved/Worker',
+            'total_hours_saved_per_week': 'Total Hours Saved/Week',
+            'weekly_dollar_savings': 'Weekly Dollar Savings',
+            'annual_dollar_savings': 'Annual Dollar Savings'
+        })
+        
+        return savings_by_occ
     
     def _compute_grouped(
         self,

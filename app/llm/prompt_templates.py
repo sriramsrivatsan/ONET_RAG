@@ -256,18 +256,46 @@ Your responses should be:
         if semantic_results:
             context_parts.append("=== SEMANTIC SEARCH RESULTS ===")
             
-            # Check if this is occupation-level summary data (document creation queries)
+            # Detect data type: task-level vs occupation-level vs industry-level
             first_result_text = semantic_results[0].get('text', '') if semantic_results else ''
-            is_occupation_summary = 'Total Employment:' in first_result_text and 'Number of Industries:' in first_result_text
+            first_metadata = semantic_results[0].get('metadata', {}) if semantic_results else {}
             
-            if is_occupation_summary:
-                context_parts.append("⚠️ IMPORTANT: These are OCCUPATION-LEVEL SUMMARIES (not individual tasks)")
-                context_parts.append("Each result represents ONE OCCUPATION with aggregated employment across all industries")
-                context_parts.append("💼 EMPLOYMENT DATA: Each occupation has a 'Employment' field showing TOTAL employment")
+            # Check if this is task-level data (has task description, occupation, time)
+            is_task_level = (
+                'hours_per_week_spent_on_task' in first_metadata or
+                (len(first_result_text) > 100 and 'Occupation:' not in first_result_text[:50])
+            )
+            
+            # Check if occupation or industry summary
+            is_occupation_summary = 'Total Employment:' in first_result_text and 'Number of Industries:' in first_result_text
+            is_industry_summary = 'Total Employment:' in first_result_text and 'Number of Occupations:' in first_result_text
+            
+            if is_task_level:
+                context_parts.append("⚠️ IMPORTANT: These are TASK-LEVEL RESULTS (individual task descriptions)")
+                context_parts.append("Each result shows ONE SPECIFIC TASK with its details")
+                context_parts.append("📋 TASK DATA INCLUDES:")
+                context_parts.append("   - Task description (what workers actually do)")
+                context_parts.append("   - Occupation performing the task")
+                context_parts.append("   - Time spent per week on this task")
+                context_parts.append("   - Employment and wage data")
+                context_parts.append(f"📊 Total Tasks: {len(semantic_results)}")
+                context_parts.append("✅ LIST THESE TASK DESCRIPTIONS in your response")
+                context_parts.append("✅ Show time data for each task where available\n")
+            elif is_industry_summary:
+                context_parts.append("⚠️ IMPORTANT: These are INDUSTRY-LEVEL SUMMARIES")
+                context_parts.append("Each result represents ONE INDUSTRY with aggregated data")
+                context_parts.append("💼 INDUSTRY DATA: Total employment across all occupations in industry")
+                context_parts.append(f"📊 Total Industries: {len(semantic_results)}")
+                context_parts.append("✅ List ALL industries with employment totals\n")
+            elif is_occupation_summary:
+                context_parts.append("⚠️ IMPORTANT: These are OCCUPATION-LEVEL SUMMARIES")
+                context_parts.append("Each result represents ONE OCCUPATION with aggregated data")
+                context_parts.append("💼 OCCUPATION DATA: Total employment across all industries")
                 context_parts.append(f"📊 Total Occupations: {len(semantic_results)}")
-                context_parts.append("✅ List ALL occupations with their employment totals")
-                context_parts.append("✅ Calculate and show grand total employment across all occupations")
-                context_parts.append("✅ Show sample tasks for each occupation\n")
+                context_parts.append("✅ List ALL occupations with employment totals\n")
+            else:
+                context_parts.append("⚠️ Each result below represents data from the dataset")
+                context_parts.append(f"📊 Total Results: {len(semantic_results)}\n")
             else:
                 context_parts.append("⚠️ IMPORTANT: Each result below represents ONE TASK from the dataset")
                 context_parts.append("For task queries, LIST ALL these task descriptions in your response!")
@@ -281,9 +309,15 @@ Your responses should be:
                 context_parts.append("    For 'by industry' queries, use these specific values (not aggregated max).")
             
             context_parts.append(f"🎯 FOR TABLES: Create at least 10-15 rows using these {len(semantic_results)} results below.")
-            context_parts.append("🌟 DIVERSITY: Show tasks from AT LEAST 5-10 DIFFERENT occupations (not all from one).")
             
-            if not is_occupation_summary:
+            if is_industry_summary:
+                context_parts.append("🌟 DIVERSITY: Show data from ALL industries provided (not just a few).")
+            elif is_occupation_summary:
+                context_parts.append("🌟 DIVERSITY: Show data from ALL occupations provided (not just a few).")
+            else:
+                context_parts.append("🌟 DIVERSITY: Show tasks from AT LEAST 5-10 DIFFERENT occupations (not all from one).")
+            
+            if not is_occupation_summary and not is_industry_summary:
                 context_parts.append("⏱️ TIME VALUES: Each result has its own ⏱️ Time value. When aggregating:")
                 context_parts.append("   - Group results by task description + occupation")
                 context_parts.append("   - Calculate AVERAGE time for that task-occupation pair")
@@ -443,6 +477,83 @@ Your responses should be:
                 context_parts.append("- Include at least top 10 industries")
                 context_parts.append("- DO NOT show individual task descriptions")
                 context_parts.append("- This is INDUSTRY-LEVEL analysis, not task-level")
+            
+            # PHASE 2: Time Analysis (for "how much time" queries)
+            if 'time_analysis' in computational_results:
+                time_data = computational_results['time_analysis']
+                
+                context_parts.append("\n=== TIME ANALYSIS ===")
+                context_parts.append("⏱️ Analysis: Time workers spend on these tasks per week\n")
+                
+                if 'overall' in time_data:
+                    overall = time_data['overall']
+                    context_parts.append("📊 OVERALL STATISTICS:")
+                    if 'avg_hours_per_worker' in overall:
+                        context_parts.append(f"- Average per worker: {overall['avg_hours_per_worker']:.1f} hours/week")
+                    if 'median_hours_per_worker' in overall:
+                        context_parts.append(f"- Median per worker: {overall['median_hours_per_worker']:.1f} hours/week")
+                    if 'min_hours' in overall and 'max_hours' in overall:
+                        context_parts.append(f"- Range: {overall['min_hours']:.1f} to {overall['max_hours']:.1f} hours/week")
+                    if 'total_worker_hours_per_week' in overall:
+                        total_hours = overall['total_worker_hours_per_week']
+                        context_parts.append(f"- Total worker-hours per week: {total_hours:,.0f} hours")
+                        if total_hours >= 1_000_000:
+                            context_parts.append(f"  (approximately {total_hours/1_000_000:.2f} million worker-hours)")
+                    context_parts.append("")
+                
+                if 'by_occupation' in time_data and time_data['by_occupation']:
+                    context_parts.append("📋 TIME BY OCCUPATION (Top 10):")
+                    for i, occ_data in enumerate(time_data['by_occupation'][:10], 1):
+                        occ_name = occ_data.get('ONET job title', 'Unknown')
+                        hours = occ_data.get('Hours per week spent on task', 0)
+                        context_parts.append(f"{i}. {occ_name}: {hours:.1f} hours/week average")
+                    context_parts.append("")
+            
+            # PHASE 2 & 3: Savings Analysis (for "time saving" / "dollar saving" queries)
+            if 'savings_analysis' in computational_results:
+                savings_data = computational_results['savings_analysis']
+                savings_summary = computational_results.get('savings_summary', {})
+                
+                context_parts.append("\n=== TIME & COST SAVINGS ANALYSIS ===")
+                assumption = savings_summary.get('assumption_pct', 40)
+                context_parts.append(f"💡 Assumption: {assumption}% time reduction from automation\n")
+                
+                if 'total_annual_savings' in savings_summary:
+                    annual = savings_summary['total_annual_savings']
+                    weekly = savings_summary.get('total_weekly_savings', 0)
+                    context_parts.append("💰 GRAND TOTALS:")
+                    context_parts.append(f"- Weekly dollar savings: ${weekly:,.2f}")
+                    context_parts.append(f"- Annual dollar savings: ${annual:,.2f}")
+                    if annual >= 1_000_000:
+                        context_parts.append(f"  (${annual/1_000_000:.2f} million per year)")
+                    if annual >= 1_000_000_000:
+                        context_parts.append(f"  (${annual/1_000_000_000:.2f} billion per year)")
+                    context_parts.append("")
+                
+                if 'total_hours_saved_per_week' in savings_summary:
+                    hours = savings_summary['total_hours_saved_per_week']
+                    context_parts.append(f"⏱️ Total hours saved per week: {hours:,.0f} hours")
+                    if hours >= 1_000_000:
+                        context_parts.append(f"   (approximately {hours/1_000_000:.2f} million hours)")
+                    context_parts.append("")
+                
+                context_parts.append("🏆 TOP OCCUPATIONS BY SAVINGS:")
+                for i, occ_data in enumerate(savings_data[:10], 1):
+                    occ_name = occ_data.get('Occupation', 'Unknown')
+                    time_saved = occ_data.get('Hours Saved/Worker', 0)
+                    total_hours = occ_data.get('Total Hours Saved/Week', 0)
+                    
+                    context_parts.append(f"\n{i}. {occ_name}")
+                    context_parts.append(f"   - Time saved per worker: {time_saved:.1f} hours/week")
+                    context_parts.append(f"   - Total hours saved: {total_hours:,.0f} hours/week")
+                    
+                    if 'Weekly Dollar Savings' in occ_data and pd.notna(occ_data.get('Weekly Dollar Savings')):
+                        weekly_savings = occ_data['Weekly Dollar Savings']
+                        annual_savings = occ_data.get('Annual Dollar Savings', 0)
+                        context_parts.append(f"   - Weekly savings: ${weekly_savings:,.2f}")
+                        context_parts.append(f"   - Annual savings: ${annual_savings:,.2f}")
+                
+                context_parts.append("")
             
             # Skill Analysis (from data dictionary enrichment)
             if 'skill_analysis' in computational_results:

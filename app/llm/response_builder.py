@@ -304,24 +304,31 @@ class QueryProcessor:
             ('csv' in query_lower and 'industry' in query_lower and 'industries' in query_lower)
         )
         
-        if query_wants_industry:
-            # Priority 1: Use industry_employment from computational results
+        # Check if query wants savings analysis
+        query_wants_savings = any(phrase in query_lower for phrase in [
+            'saving', 'save', 'roi', 'dollar', 'cost'
+        ])
+        
+        # Priority 1: Savings analysis (if requested)
+        if query_wants_savings and retrieval_results.get('computational_results', {}).get('savings_analysis'):
+            savings_df = pd.DataFrame(retrieval_results['computational_results']['savings_analysis'])
+            csv_data = savings_df
+            logger.info(f"Using savings_analysis for CSV ({len(csv_data)} occupations)", show_ui=False)
+        # Priority 2: Industry employment
+        elif query_wants_industry:
             if retrieval_results.get('computational_results', {}).get('industry_employment') is not None:
                 csv_data = retrieval_results['computational_results']['industry_employment']
                 logger.info(f"Using industry_employment for CSV ({len(csv_data)} industries)", show_ui=False)
-            # Priority 2: Use industry_proportions
             elif retrieval_results.get('computational_results', {}).get('industry_proportions') is not None:
-                # Convert industry proportions to DataFrame
                 ind_props = retrieval_results['computational_results']['industry_proportions']
                 if 'industries' in ind_props:
                     csv_data = pd.DataFrame(ind_props['industries'])
                     logger.info(f"Using industry_proportions for CSV ({len(csv_data)} industries)", show_ui=False)
+        # Priority 3: Occupation employment
         else:
-            # Priority 1: Use occupation_employment from computational results
             if retrieval_results.get('computational_results', {}).get('occupation_employment') is not None:
                 csv_data = retrieval_results['computational_results']['occupation_employment']
                 logger.info(f"Using occupation_employment for CSV ({len(csv_data)} occupations)", show_ui=False)
-            # Priority 2: Use filtered dataframe if export_csv is requested
             elif routing_info.get('strategy', {}).get('export_csv'):
                 filtered_df = retrieval_results.get('filtered_dataframe')
                 if filtered_df is not None and not filtered_df.empty:
