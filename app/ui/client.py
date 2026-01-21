@@ -4,7 +4,7 @@ Client View UI for analyst queries
 import streamlit as st
 import pandas as pd
 from io import StringIO
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from app.llm.response_builder import QueryProcessor, ResponseBuilder
 from app.rag.retriever import HybridRetriever
