@@ -55,8 +55,15 @@ class HybridRetriever:
         wants_task_details = any(phrase in query_lower for phrase in [
             'specific tasks', 'what tasks', 'which tasks', 'task descriptions',
             'tasks that', 'tasks involve', 'list tasks', 'show tasks', 'describe tasks',
-            'job tasks', 'work tasks', 'task list'
+            'job tasks', 'work tasks', 'task list', 'tasks for', 'all tasks', 'all the tasks'
         ])
+        
+        # Detect if user is asking for tasks for a SPECIFIC occupation
+        # e.g., "What are the tasks for an art director?"
+        is_specific_occupation_task_query = (
+            wants_task_details and 
+            any(phrase in query_lower for phrase in ['tasks for', 'tasks of', 'all tasks'])
+        )
         
         wants_occupation_summary = any(phrase in query_lower for phrase in [
             'what jobs', 'which jobs', 'what occupations', 'which occupations',
@@ -97,6 +104,11 @@ class HybridRetriever:
         
         
         # ROUTING DECISION: Choose response type based on query intent
+        
+        # NEW: Handle specific occupation task queries (e.g., "What are the tasks for an art director?")
+        if is_specific_occupation_task_query and self.df is not None:
+            logger.info("Specific occupation task query - extracting occupation and returning ALL tasks", show_ui=False)
+            return self._create_specific_occupation_tasks(results, query_lower, query)
         
         # NEW: Handle general industry/occupation ranking queries (no task filter)
         is_general_industry_ranking = (
@@ -404,6 +416,127 @@ class HybridRetriever:
             results['computational_results']['time_analysis'] = time_stats
         
         logger.info(f"Created {len(task_details)} task detail results from {len(occ_counts)} occupations", show_ui=False)
+        
+        return results
+    
+    def _create_specific_occupation_tasks(
+        self,
+        results: Dict[str, Any],
+        query_lower: str,
+        original_query: str
+    ) -> Dict[str, Any]:
+        """
+        Handle queries asking for all tasks for a specific occupation
+        e.g., "What are the tasks for an art director?"
+        
+        Returns ALL distinct tasks for the specified occupation, not limited to top 5 or 30
+        """
+        logger.info(f"Extracting occupation name from query: {original_query}", show_ui=False)
+        
+        # Extract potential occupation name from query
+        # Remove common query words
+        occupation_query = query_lower
+        for phrase in ['what are the tasks for', 'what tasks for', 'tasks for', 'all tasks for', 
+                       'list all tasks for', 'show tasks for', 'what are all the tasks for',
+                       'what are tasks for', 'tasks of', 'all tasks of', 'an ', 'a ', 'the ']:
+            occupation_query = occupation_query.replace(phrase, '')
+        
+        occupation_query = occupation_query.strip(' ?.')
+        
+        logger.info(f"Searching for occupation: '{occupation_query}'", show_ui=False)
+        
+        # Search for occupation in dataset (fuzzy match)
+        # Try exact match first
+        matching_rows = self.df[
+            self.df['ONET job title'].str.lower().str.contains(occupation_query, case=False, na=False)
+        ]
+        
+        if len(matching_rows) == 0:
+            # Try searching in multiple words
+            search_terms = occupation_query.split()
+            if len(search_terms) > 0:
+                # Search for any of the terms
+                mask = pd.Series([False] * len(self.df))
+                for term in search_terms:
+                    if len(term) > 2:  # Skip very short words
+                        mask |= self.df['ONET job title'].str.lower().str.contains(term, case=False, na=False)
+                matching_rows = self.df[mask]
+        
+        if len(matching_rows) == 0:
+            logger.warning(f"No occupation found matching '{occupation_query}'", show_ui=True)
+            # Fall back to semantic search
+            return results
+        
+        # Get the most common occupation title (in case of variations)
+        occupation_name = matching_rows['ONET job title'].value_counts().index[0]
+        
+        # Filter to this specific occupation
+        occupation_df = self.df[self.df['ONET job title'] == occupation_name].copy()
+        
+        logger.info(f"Found occupation: '{occupation_name}' with {len(occupation_df)} task entries", show_ui=False)
+        
+        # Get ALL distinct tasks for this occupation
+        # Group by task description to get unique tasks with aggregated data
+        task_groups = occupation_df.groupby('Detailed job tasks').agg({
+            'Hours per week spent on task': 'mean',
+            'Employment': 'max',  # Max employment across industries
+            'Hourly wage': 'mean',
+            'Industry title': lambda x: list(x.unique())[:5]  # Sample industries
+        }).reset_index()
+        
+        # Sort by time spent (descending) to show most important tasks first
+        task_groups = task_groups.sort_values('Hours per week spent on task', ascending=False, na_position='last')
+        
+        logger.info(f"Found {len(task_groups)} DISTINCT tasks for {occupation_name}", show_ui=False)
+        
+        # Store filtered dataframe for CSV export
+        results['filtered_dataframe'] = task_groups.copy().reset_index(drop=True)
+        
+        # Convert ALL tasks to semantic results (no limit!)
+        for i, row in task_groups.iterrows():
+            task_text = row['Detailed job tasks']
+            
+            # Format industries list
+            industries = row['Industry title']
+            industry_text = ', '.join(industries) if isinstance(industries, list) else str(industries)
+            
+            metadata = {
+                'onet_job_title': occupation_name,
+                'task_description': task_text,
+                'hours_per_week_spent_on_task': row['Hours per week spent on task'],
+                'employment': row['Employment'],
+                'hourly_wage': row['Hourly wage'],
+                'sample_industries': industry_text,
+                'is_specific_occupation_task': True
+            }
+            
+            results['semantic_results'].append({
+                'text': f"Task: {task_text}\nOccupation: {occupation_name}\nTime: {row['Hours per week spent on task']:.1f} hrs/week\nIndustries: {industry_text}",
+                'score': 1.0 - (i * 0.001),  # Slight decay for ordering
+                'metadata': metadata
+            })
+        
+        # Create CSV data
+        csv_data = task_groups.copy()
+        csv_data['Occupation'] = occupation_name
+        csv_data = csv_data.rename(columns={
+            'Detailed job tasks': 'Task Description',
+            'Hours per week spent on task': 'Hours per Week',
+            'Employment': 'Employment (thousands)',
+            'Hourly wage': 'Hourly Wage',
+            'Industry title': 'Sample Industries'
+        })
+        
+        results['computational_results']['occupation_tasks'] = csv_data[[
+            'Occupation',
+            'Task Description',
+            'Hours per Week',
+            'Employment (thousands)',
+            'Hourly Wage',
+            'Sample Industries'
+        ]]
+        
+        logger.info(f"Created {len(results['semantic_results'])} task results for {occupation_name} (ALL distinct tasks)", show_ui=False)
         
         return results
     
