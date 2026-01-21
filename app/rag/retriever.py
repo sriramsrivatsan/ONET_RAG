@@ -111,46 +111,47 @@ class HybridRetriever:
                 logger.info(f"Provided {len(results['semantic_results'])} industry-occupation combinations", show_ui=False)
                 
             else:
-                # For task queries, provide diverse sample of tasks
-                logger.info("Task query - sampling diverse tasks", show_ui=False)
-            
-                # Get diverse sample: max 2 tasks per occupation, prioritize by time
-                task_occ_summary = matching_df.groupby(['Detailed job tasks', 'ONET job title']).agg({
-                    'Hours per week spent on task': 'mean',
-                    'Industry title': 'nunique',
-                    'Employment': 'first'
+                # For task queries, provide OCCUPATION-LEVEL summaries with employment totals
+                logger.info(f"Task query - aggregating {len(matching_df)} matching rows by occupation", show_ui=False)
+                
+                # Aggregate by occupation to get employment totals
+                occ_summary = matching_df.groupby('ONET job title').agg({
+                    'Employment': 'sum',  # Total employment across all industries
+                    'Industry title': 'nunique',  # Number of industries
+                    'Detailed job tasks': lambda x: '; '.join(x.unique()[:3])  # Sample tasks
                 }).reset_index()
                 
-                # Sort by time (desc) to prioritize more time-consuming tasks
-                task_occ_summary = task_occ_summary.sort_values('Hours per week spent on task', ascending=False, na_position='last')
+                # Sort by employment descending
+                occ_summary = occ_summary.sort_values('Employment', ascending=False)
                 
-                # Sample for diversity: max 2 per occupation
-                diverse_tasks = []
-                occ_counts = {}
+                logger.info(f"Found {len(occ_summary)} unique occupations with total employment", show_ui=False)
                 
-                for _, row in task_occ_summary.iterrows():
-                    occ = row['ONET job title']
-                    if occ_counts.get(occ, 0) < 2:
-                        diverse_tasks.append(row)
-                        occ_counts[occ] = occ_counts.get(occ, 0) + 1
-                    
-                    if len(diverse_tasks) >= 30:
-                        break
+                # Store filtered dataframe for CSV export and follow-up queries
+                # Create a dataframe with one row per occupation showing totals
+                results['filtered_dataframe'] = matching_df.copy().reset_index(drop=True)
                 
-                # Convert to semantic results format
-                for i, row in enumerate(diverse_tasks):
+                # Convert to semantic results format - one result per occupation with employment total
+                for i, row in occ_summary.iterrows():
                     results['semantic_results'].append({
-                        'text': row['Detailed job tasks'],
+                        'text': f"Occupation: {row['ONET job title']}\nTotal Employment: {row['Employment']:.2f}k workers\nNumber of Industries: {row['Industry title']}\nSample Tasks: {row['Detailed job tasks'][:200]}...",
                         'score': 1.0 - (i * 0.01),
                         'metadata': {
                             'onet_job_title': row['ONET job title'],
-                            'hours_per_week_spent_on_task': row['Hours per week spent on task'],
+                            'total_employment': row['Employment'],
                             'industry_count': row['Industry title'],
-                            'employment': row['Employment']
+                            'sample_tasks': row['Detailed job tasks']
                         }
                     })
                 
-                logger.info(f"Created {len(results['semantic_results'])} diverse results from {len(occ_counts)} occupations", show_ui=False)
+                # Create CSV data with occupation-level summaries
+                results['computational_results']['occupation_employment'] = occ_summary.rename(columns={
+                    'ONET job title': 'Occupation',
+                    'Employment': 'Total Employment (thousands)',
+                    'Industry title': 'Number of Industries',
+                    'Detailed job tasks': 'Sample Tasks'
+                })
+                
+                logger.info(f"Created {len(results['semantic_results'])} occupation-level results with employment totals", show_ui=False)
             
         # Execute semantic search if needed and not using pattern matching
         elif strategy['use_vector_search']:

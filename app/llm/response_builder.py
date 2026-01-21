@@ -293,9 +293,15 @@ class QueryProcessor:
             routing_info=routing_info
         )
         
-        # Step 4: Generate CSV if requested
+        # Step 4: Generate CSV data
         csv_data = None
-        if routing_info.get('strategy', {}).get('export_csv'):
+        
+        # Priority 1: Use occupation_employment from computational results if available (for document creation queries)
+        if retrieval_results.get('computational_results', {}).get('occupation_employment') is not None:
+            csv_data = retrieval_results['computational_results']['occupation_employment']
+            logger.info(f"Using occupation_employment from computational results for CSV ({len(csv_data)} occupations)", show_ui=False)
+        # Priority 2: Use filtered dataframe if export_csv is requested
+        elif routing_info.get('strategy', {}).get('export_csv'):
             filtered_df = retrieval_results.get('filtered_dataframe')
             if filtered_df is not None and not filtered_df.empty:
                 csv_data = self.response_builder.generate_csv_data(
