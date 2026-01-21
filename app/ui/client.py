@@ -168,7 +168,8 @@ class ClientView:
                 
                 # Store filtered dataset if available
                 if response.get('retrieval_results', {}).get('filtered_dataframe') is not None:
-                    st.session_state.filtered_dataset = response['retrieval_results']['filtered_dataframe']
+                    # Reset index for follow-up query compatibility
+                    st.session_state.filtered_dataset = response['retrieval_results']['filtered_dataframe'].reset_index(drop=True)
                 elif response.get('retrieval_results', {}).get('semantic_results'):
                     # Extract row indices from semantic results and filter dataframe
                     semantic_results = response['retrieval_results']['semantic_results']
@@ -178,7 +179,8 @@ class ClientView:
                         if 'row_index' in r.get('metadata', {})
                     ]
                     if row_indices and st.session_state.dataframe is not None:
-                        st.session_state.filtered_dataset = st.session_state.dataframe.loc[row_indices]
+                        # CRITICAL FIX: Reset index to avoid index mismatch in follow-up queries
+                        st.session_state.filtered_dataset = st.session_state.dataframe.loc[row_indices].reset_index(drop=True)
                 
                 # Display CSV if available
                 if response.get('csv_data') is not None:
@@ -512,28 +514,68 @@ class ClientView:
         
         with st.spinner("🔄 Processing follow-up query on filtered dataset..."):
             try:
-                # Temporarily replace the full dataset with filtered dataset
-                original_df = st.session_state.dataframe
-                st.session_state.dataframe = st.session_state.filtered_dataset
+                # Get the filtered dataset (already has reset index from initial query)
+                filtered_df = st.session_state.filtered_dataset
                 
-                # Reinitialize retriever with filtered dataset
+                if filtered_df is None or filtered_df.empty:
+                    st.error("No filtered dataset available. Please run an initial query first.")
+                    return
+                
+                st.info(f"📊 Querying {len(filtered_df):,} filtered records")
+                
+                # CRITICAL FIX: Rebuild vector store with filtered dataset
+                # This ensures indices match between vector store and dataframe
+                with st.spinner("🔧 Indexing filtered dataset..."):
+                    from app.rag.vector_store import VectorStore
+                    
+                    # Create temporary vector store for filtered data
+                    temp_vector_store = VectorStore(collection_name="temp_followup_collection")
+                    
+                    # Add filtered documents to temporary vector store
+                    documents = []
+                    metadatas = []
+                    ids = []
+                    
+                    for idx, row in filtered_df.iterrows():
+                        # Create document text
+                        doc_text = f"{row.get('occupation', '')} {row.get('task', '')} {row.get('industry', '')}"
+                        documents.append(doc_text)
+                        
+                        # Metadata with RESET index
+                        metadatas.append({
+                            'row_index': idx,  # This now matches the reset index (0, 1, 2, ...)
+                            'occupation': str(row.get('occupation', '')),
+                            'industry': str(row.get('industry', '')),
+                            'task': str(row.get('task', ''))
+                        })
+                        
+                        ids.append(f"followup_{idx}")
+                    
+                    # Add to temporary vector store
+                    temp_vector_store.add_documents(
+                        documents=documents,
+                        metadatas=metadatas,
+                        ids=ids
+                    )
+                
+                # Create retriever with temporary vector store and filtered dataset
                 retriever = HybridRetriever(
-                    vector_store=st.session_state.vector_store,
-                    dataframe=st.session_state.filtered_dataset,
+                    vector_store=temp_vector_store,  # ✅ NEW vector store with filtered data
+                    dataframe=filtered_df,  # ✅ Filtered dataset with reset index
                     aggregator=st.session_state.aggregator
                 )
                 
-                # Reinitialize query processor with filtered data
+                # Create query processor with filtered data
                 api_key = config.get_openai_api_key()
                 response_builder = ResponseBuilder(api_key)
                 temp_processor = QueryProcessor(
                     response_builder=response_builder,
                     retriever=retriever,
-                    dataframe=st.session_state.filtered_dataset
+                    dataframe=filtered_df
                 )
                 
-                # Process query
-                k_results = len(st.session_state.filtered_dataset)
+                # Process query on filtered dataset
+                k_results = len(filtered_df)
                 response = temp_processor.process_query(
                     query=query,
                     k_results=k_results
@@ -547,17 +589,26 @@ class ClientView:
                 st.session_state.last_query = query
                 st.session_state.last_query_results = response
                 
-                # FIX: Add to query history (was missing!)
+                # Add to query history
                 if 'query_history' not in st.session_state:
                     st.session_state.query_history = []
                 
                 st.session_state.query_history.append({
-                    'query': f"[Follow-up] {query}",  # Mark as follow-up
+                    'query': f"[Follow-up] {query}",
                     'timestamp': pd.Timestamp.now(),
                     'response': response
                 })
                 
-                # Reset follow-up interface flag
+                # Clean up temporary vector store
+                temp_vector_store.delete_collection()
+                
+                st.success("✅ Follow-up query completed successfully!")
+                
+            except Exception as e:
+                logger.error(f"Follow-up query processing failed: {str(e)}", show_ui=True)
+                st.error(f"🚨 Follow-up query processing failed: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())
                 st.session_state.show_followup_interface = False
                 
                 # Export option for follow-up results
