@@ -329,6 +329,14 @@ class HybridRetriever:
             )
             # Ensure we have a dict, not None
             results['computational_results'] = computational_results if computational_results is not None else {}
+            
+            # Extract filtered_dataframe if it was created in computational retrieval
+            if computational_results and 'filtered_dataframe' in computational_results:
+                results['filtered_dataframe'] = computational_results['filtered_dataframe']
+                # Remove from computational_results to avoid duplication
+                del computational_results['filtered_dataframe']
+                logger.debug(f"Extracted filtered_dataframe from computational_results")
+            
             logger.debug(f"Computed {len(results['computational_results'])} aggregations")
         
         # Filter dataframe based on semantic results if needed
@@ -1240,7 +1248,8 @@ Original query: "{original_query}"
                 if matching_occupations:
                     # Filter dataframe to only matching occupations
                     filtered_df = self.df[self.df['ONET job title'].isin(matching_occupations)].copy()
-                    results['filtered_dataframe'] = filtered_df.reset_index(drop=True)
+                    # Store in computational_results (will be extracted later)
+                    computational_results['filtered_dataframe'] = filtered_df.reset_index(drop=True)
                     logger.info(f"✅ Created filtered_dataframe with {len(filtered_df)} rows from {len(matching_occupations)} matching occupations for follow-up queries", show_ui=True)
                 else:
                     logger.warning("No matching occupations found in pattern analysis", show_ui=False)
