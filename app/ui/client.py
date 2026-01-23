@@ -4,7 +4,9 @@ Client View UI for analyst queries
 import streamlit as st
 import pandas as pd
 from io import StringIO
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
+from datetime import datetime
+import base64
 
 from app.llm.response_builder import QueryProcessor, ResponseBuilder
 from app.rag.retriever import HybridRetriever
@@ -18,6 +20,134 @@ class ClientView:
     
     def __init__(self):
         self.query_processor: Optional[QueryProcessor] = None
+        
+        # Initialize log collection in session state
+        if 'ui_logs' not in st.session_state:
+            st.session_state.ui_logs = []
+    
+    @staticmethod
+    def _add_log(message: str, log_type: str = "info"):
+        """Add a log message to the session state logs"""
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        log_entry = {
+            'timestamp': timestamp,
+            'type': log_type,
+            'message': message
+        }
+        if 'ui_logs' not in st.session_state:
+            st.session_state.ui_logs = []
+        st.session_state.ui_logs.append(log_entry)
+    
+    @staticmethod
+    def _log_and_show_error(message: str):
+        """Log error and show in UI (errors are always shown)"""
+        ClientView._add_log(message, "error")
+        st.error(message)
+    
+    @staticmethod
+    def _log_and_show_warning(message: str):
+        """Log warning and show in UI (warnings are always shown)"""
+        ClientView._add_log(message, "warning")
+        st.warning(message)
+    
+    @staticmethod
+    def _log_info(message: str, show_in_ui: bool = False):
+        """Log info message, optionally show in UI"""
+        ClientView._add_log(message, "info")
+        if show_in_ui:
+            st.info(message)
+    
+    @staticmethod
+    def _log_success(message: str, show_in_ui: bool = False):
+        """Log success message, optionally show in UI"""
+        ClientView._add_log(message, "success")
+        if show_in_ui:
+            st.success(message)
+    
+    @staticmethod
+    def _clear_logs():
+        """Clear all logs"""
+        st.session_state.ui_logs = []
+    
+    @staticmethod
+    def _render_log_viewer():
+        """Render the log viewer in an expander"""
+        with st.expander("📋 System Logs", expanded=False):
+            col1, col2 = st.columns([0.8, 0.2])
+            with col2:
+                if st.button("🗑️ Clear", key="clear_logs_btn"):
+                    ClientView._clear_logs()
+                    if 'system_logs' in st.session_state:
+                        st.session_state.system_logs = []
+                    st.rerun()
+            
+            # Combine ui_logs and system_logs
+            all_logs = []
+            
+            # Add UI logs
+            if 'ui_logs' in st.session_state and st.session_state.ui_logs:
+                all_logs.extend(st.session_state.ui_logs)
+            
+            # Add system logs (from logger)
+            if 'system_logs' in st.session_state and st.session_state.system_logs:
+                for log in st.session_state.system_logs:
+                    all_logs.append({
+                        'timestamp': log['timestamp'].split(' ')[1] if ' ' in log['timestamp'] else log['timestamp'],
+                        'type': log['level'].lower(),
+                        'message': log['message']
+                    })
+            
+            if all_logs:
+                st.markdown("---")
+                # Show logs in reverse order (newest first), limit to last 100
+                for log in reversed(all_logs[-100:]):
+                    timestamp = log['timestamp']
+                    log_type = log['type'].lower() if 'type' in log else 'info'
+                    message = log['message']
+                    
+                    # Color code based on log type
+                    if log_type in ['error', 'critical']:
+                        st.markdown(f"🔴 `{timestamp}` {message}")
+                    elif log_type in ['warning', 'warn']:
+                        st.markdown(f"🟡 `{timestamp}` {message}")
+                    elif log_type in ['success']:
+                        st.markdown(f"🟢 `{timestamp}` {message}")
+                    else:
+                        st.markdown(f"ℹ️ `{timestamp}` {message}")
+            else:
+                st.caption("No logs yet. Logs will appear here as you use the system.")
+    
+    @staticmethod
+    def _copy_to_clipboard_button(text: str, button_key: str, label: str = "📋 Copy"):
+        """Create a copy to clipboard button using Streamlit's native approach"""
+        # Create a unique container for this button
+        col1, col2 = st.columns([0.9, 0.1])
+        
+        with col2:
+            if st.button(label, key=button_key, help="Copy response to clipboard"):
+                # Use st.write with HTML to trigger clipboard copy via JavaScript
+                # Encode text to base64 to handle special characters
+                text_b64 = base64.b64encode(text.encode()).decode()
+                
+                st.components.v1.html(
+                    f"""
+                    <script>
+                    const text = atob("{text_b64}");
+                    navigator.clipboard.writeText(text).then(function() {{
+                        // Success - could show a toast notification here
+                    }}, function(err) {{
+                        console.error('Could not copy text: ', err);
+                    }});
+                    </script>
+                    <style>
+                    iframe {{
+                        height: 0px !important;
+                    }}
+                    </style>
+                    """,
+                    height=0
+                )
+                st.success("✅ Copied to clipboard!", icon="📋")
     
     def render(self):
         """Render the client view"""
@@ -27,12 +157,16 @@ class ClientView:
         
         st.title("📊 Analyst Interface - Labor Market Intelligence")
         st.markdown("Ask questions about occupations, industries, tasks, and labor market trends")
+        
+        # Add log viewer at the top
+        self._render_log_viewer()
+        
         st.markdown("---")
         
         # Check if system is ready
         if not self._check_system_ready():
-            st.warning("⚠️ System not initialized. Please go to Admin panel to upload and process data.")
-            st.info("💡 Click the **Back to Home** button in the sidebar, then select **Admin View** to get started.")
+            self._add_log("⚠️ System not initialized. Please go to Admin panel to upload and process data.", "warning")
+            self._add_log("💡 Click the **Back to Home** button in the sidebar, then select **Admin View** to get started.", "info")
             return
         
         # Initialize query processor if needed
@@ -164,7 +298,31 @@ class ClientView:
                 
                 # Display answer
                 st.markdown("### 📊 Analysis Results")
-                st.markdown(response['answer'])
+                
+                # Create columns for response and copy button
+                response_col, button_col = st.columns([0.95, 0.05])
+                
+                with response_col:
+                    st.markdown(response['answer'])
+                
+                with button_col:
+                    if st.button("📋", key="copy_main_response", help="Copy response to clipboard"):
+                        # Use Streamlit's clipboard via pyperclip or JavaScript
+                        st.components.v1.html(
+                            f"""
+                            <script>
+                            const text = {repr(response['answer'])};
+                            navigator.clipboard.writeText(text).then(function() {{
+                                console.log('Copied to clipboard');
+                            }}, function(err) {{
+                                console.error('Could not copy text: ', err);
+                            }});
+                            </script>
+                            """,
+                            height=0
+                        )
+                        self._add_log("✅ Response copied to clipboard", "success")
+                        st.success("✅ Copied!", icon="📋")
                 
                 # Store results for follow-up functionality
                 st.session_state.last_query = query
@@ -635,7 +793,30 @@ class ClientView:
                     result = self._simple_aggregation_on_filtered_data(filtered_df, query)
                     if result:
                         st.markdown("### 📊 Follow-up Analysis Results")
-                        st.markdown(result['answer'])
+                        
+                        # Create columns for response and copy button
+                        response_col, button_col = st.columns([0.95, 0.05])
+                        
+                        with response_col:
+                            st.markdown(result['answer'])
+                        
+                        with button_col:
+                            if st.button("📋", key="copy_followup_1", help="Copy response to clipboard"):
+                                st.components.v1.html(
+                                    f"""
+                                    <script>
+                                    const text = {repr(result['answer'])};
+                                    navigator.clipboard.writeText(text).then(function() {{
+                                        console.log('Copied to clipboard');
+                                    }}, function(err) {{
+                                        console.error('Could not copy text: ', err);
+                                    }});
+                                    </script>
+                                    """,
+                                    height=0
+                                )
+                                self._add_log("✅ Follow-up response copied to clipboard", "success")
+                                st.success("✅ Copied!", icon="📋")
                         
                         if result.get('csv_data') is not None:
                             self._display_csv_download(result['csv_data'], "followup")
@@ -683,7 +864,30 @@ class ClientView:
                 
                 # Display results
                 st.markdown("### 📊 Follow-up Analysis Results")
-                st.markdown(response['answer'])
+                
+                # Create columns for response and copy button
+                response_col, button_col = st.columns([0.95, 0.05])
+                
+                with response_col:
+                    st.markdown(response['answer'])
+                
+                with button_col:
+                    if st.button("📋", key="copy_followup_2", help="Copy response to clipboard"):
+                        st.components.v1.html(
+                            f"""
+                            <script>
+                            const text = {repr(response['answer'])};
+                            navigator.clipboard.writeText(text).then(function() {{
+                                console.log('Copied to clipboard');
+                            }}, function(err) {{
+                                console.error('Could not copy text: ', err);
+                            }});
+                            </script>
+                            """,
+                            height=0
+                        )
+                        self._add_log("✅ Follow-up response copied to clipboard", "success")
+                        st.success("✅ Copied!", icon="📋")
                 
                 # Show query details in expander
                 with st.expander("🔍 Query Details"):
