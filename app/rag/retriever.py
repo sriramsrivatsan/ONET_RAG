@@ -747,7 +747,13 @@ Original query: "{original_query}"
             'Hourly wage': 'Avg Hourly Wage'
         })
         
-        logger.info(f"Created {len(results['semantic_results'])} occupation-level results", show_ui=False)
+        # CRITICAL FIX: Calculate and store GRAND TOTAL across all occupations
+        # This ensures the LLM has the correct total, not just individual occupation totals
+        grand_total_employment = float(occ_summary['Employment'].sum())
+        results['computational_results']['total_employment'] = grand_total_employment
+        results['computational_results']['total_occupations'] = len(occ_summary)
+        
+        logger.info(f"Created {len(results['semantic_results'])} occupation-level results with grand total: {grand_total_employment:.2f}k workers", show_ui=True)
         
         return results
     

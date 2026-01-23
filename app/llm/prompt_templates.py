@@ -396,6 +396,16 @@ Your responses should be:
                         logger.warning(f"Could not format total value for {key}: {value}", show_ui=False)
                         continue
             
+            # CRITICAL: Grand Total Employment (for occupation/industry summaries)
+            # This is the total across ALL occupations/industries, not just visible ones
+            if 'total_employment' in computational_results and 'totals' not in computational_results:
+                total_emp = computational_results['total_employment']
+                total_occ = computational_results.get('total_occupations', 'N/A')
+                context_parts.append(f"\n⭐ GRAND TOTAL EMPLOYMENT: {float(total_emp):,.2f} thousand workers")
+                context_parts.append(f"⭐ TOTAL OCCUPATIONS ANALYZED: {total_occ}")
+                context_parts.append("⚠️ CRITICAL: Use this GRAND TOTAL in your response, not the sum of visible occupations")
+                context_parts.append("⚠️ This total is correctly de-duplicated across all occupation-industry pairs\n")
+            
             # Averages
             if 'averages' in computational_results:
                 context_parts.append("\nAverages:")
