@@ -60,10 +60,10 @@ CRITICAL: When asked for "TOTAL employment" or "What's the total":
 
 IMPORTANT: When asked "What jobs..." or "Which occupations..." questions:
 - If you see "OCCUPATION PATTERN MATCHING ANALYSIS" in the context, list ALL occupations shown
-- DO NOT just pick the first occupation - list at least the top 10-15 as ranked
-- Format as a clear numbered list with percentages/counts from the analysis
-- Include the matching task count and percentage for each occupation
-- Provide examples when available
+- If you have 30+ occupations, show ALL of them (not just 10-15)
+- Format as a clear numbered list or table with employment and task counts from the analysis
+- Include the matching task count for each occupation
+- Provide example tasks when available
 
 CRITICAL: Distinguish between OCCUPATION queries vs TASK queries:
 - "What JOBS create documents?" → Show OCCUPATION LIST with employment and task counts
@@ -85,9 +85,9 @@ For OCCUPATION queries (What jobs/occupations):
   
 For TASK queries (What tasks/specific tasks):
 - Format: Table of TASKS with descriptions, occupation, time, industries
-- Show 10-15+ individual task descriptions
+- Show many task descriptions (use ALL tasks provided, or up to 100 if very large dataset)
 - Include time per task and industry count
-- Ensure diversity across occupations (5-10+)
+- Ensure diversity across occupations (show multiple occupations)
 
 For BREAKDOWN BY INDUSTRY AND OCCUPATION queries:
 - This requires showing ALL occupation-industry combinations
@@ -124,9 +124,9 @@ IMPORTANT: When asked about "specific tasks" or "what tasks" or "task descriptio
 - DO NOT say "tasks are not explicitly listed" - they ARE in the semantic results!
 - If the query asks about time spent, extract the time from the "⏱️ Time:" field
 - Format as a numbered list with each task's description, occupation, and time
-- Show AT LEAST 10-15 tasks if available in the results
-- **CRITICAL: Ensure DIVERSITY across occupations - show tasks from at least 5-10 different occupations**
-- **DO NOT show 10+ tasks all from the same occupation - spread them out**
+- Show comprehensive set of tasks if available in the results
+- **CRITICAL: Ensure DIVERSITY across occupations - show tasks from multiple different occupations**
+- **DO NOT show many tasks all from the same occupation - spread them out**
 - **CRITICAL: Only include tasks that ACTUALLY involve creating documents**
   - Task must contain action verbs: create, develop, design, prepare, write, produce
   - Task must contain document objects: document, report, spreadsheet, file, drawing, plan
@@ -134,17 +134,17 @@ IMPORTANT: When asked about "specific tasks" or "what tasks" or "task descriptio
   - Examples of VALID tasks: "Prepare reports", "Create drawings", "Develop plans", "Write documentation"
   - Examples of INVALID tasks: "Analyze processes", "Coordinate services", "Review proposals" (without creating)
   - When in doubt, check if the task explicitly states creating/producing something
-- CRITICAL FOR TABLES: If asked for tabular format, include 10-15+ rows minimum, showing diverse tasks across different occupations (not just 2-3 rows from one occupation)
+- CRITICAL FOR TABLES: If asked for tabular format, show diverse tasks across different occupations (not just from one occupation)
 - Example format:
   1. "[Task description from semantic result]"
      - Occupation: [occupation from metadata]
      - Time: [hours from metadata]
 
 CRITICAL: When asked for TABULAR format or TABLE:
-- YOU MUST SHOW AT LEAST 10-15 ROWS in the table (not just 2-3)
+- Show comprehensive table with good coverage of the data
 - Each row should be a UNIQUE task-occupation pair
-- **CRITICAL: Show tasks from AT LEAST 5-10 DIFFERENT OCCUPATIONS**
-- **DO NOT show more than 2-3 tasks from the same occupation**
+- **CRITICAL: Show tasks from MULTIPLE DIFFERENT OCCUPATIONS**
+- **DO NOT show excessive tasks from the same occupation**
 - This ensures diversity and comprehensive coverage
 - DO NOT show every industry separately if the task and occupation are the same
 - AGGREGATE by task description and occupation
@@ -167,7 +167,6 @@ CRITICAL: When asked for TABULAR format or TABLE:
   | "Review documents..." | Managers | 5.0 | 7 |
 - Notice: Each row has DIFFERENT time values and DIFFERENT industry counts
 - **DO NOT calculate one average for all rows - calculate separately for each!**
-- Remember: MINIMUM 10-15 rows showing diverse tasks and occupations
 - This prevents unnecessary repetition and makes tables concise and readable
 
 CRITICAL: When asked for "by occupation AND industry" or "by industry and occupation":
@@ -304,20 +303,35 @@ Your responses should be:
                     context_parts.append(f"⭐⭐⭐ GRAND TOTAL EMPLOYMENT: {float(grand_total):,.2f} thousand workers ⭐⭐⭐")
                     context_parts.append(f"⭐⭐⭐ ACROSS ALL {total_occs} OCCUPATIONS ⭐⭐⭐")
                     context_parts.append("")
-                    context_parts.append("🚫 DO NOT CALCULATE TOTAL BY SUMMING THE TABLE BELOW! 🚫")
-                    context_parts.append("🚫 THE TABLE SHOWS ONLY A SUBSET OF OCCUPATIONS! 🚫")
+                    context_parts.append("🚫 DO NOT CALCULATE TOTAL BY SUMMING THE TABLE! 🚫")
+                    context_parts.append(f"🚫 YOU HAVE {total_occs} OCCUPATIONS - SHOW THEM ALL! 🚫")
                     context_parts.append("")
                     context_parts.append("✅ ALWAYS USE THE GRAND TOTAL ABOVE ({:,.2f}k workers) ✅".format(float(grand_total)))
                     context_parts.append("✅ THIS IS THE CORRECT, DE-DUPLICATED TOTAL ✅")
                     context_parts.append("=" * 80)
                     context_parts.append("")
-                
-                context_parts.append("✅ List ALL occupations with employment totals\n")
+                    
+                    # Clear instructions for display
+                    if total_occs > 100:
+                        context_parts.append(f"📊 DISPLAY INSTRUCTIONS: You have {total_occs} occupations total")
+                        context_parts.append(f"✅ Show ALL {total_occs} occupations in your table (yes, include ALL of them)")
+                        context_parts.append(f"📥 After table, add: 'Full dataset with all {total_occs} occupations available via CSV download below.'")
+                    else:
+                        context_parts.append(f"✅ Show ALL {total_occs} occupations in your table\n")
+                else:
+                    # No grand total available, just show count
+                    context_parts.append(f"✅ Show ALL {len(semantic_results)} occupations in your table\n")
             else:
                 context_parts.append("⚠️ Each result below represents data from the dataset")
                 context_parts.append(f"📊 Total Results: {len(semantic_results)}\n")
             
-            context_parts.append(f"🎯 FOR TABLES: Create at least 10-15 rows using these {len(semantic_results)} results below.")
+            # FOR TABLES: Instructions based on result type
+            if is_occupation_summary or is_industry_summary:
+                # For summaries, show ALL items
+                context_parts.append(f"🎯 FOR TABLES: Include ALL {len(semantic_results)} items in your response.")
+            else:
+                # For task-level data, show good sample
+                context_parts.append(f"🎯 FOR TABLES: Create comprehensive tables using these {len(semantic_results)} results below.")
             
             if is_industry_summary:
                 context_parts.append("🌟 DIVERSITY: Show data from ALL industries provided (not just a few).")
@@ -799,11 +813,11 @@ INSTRUCTIONS:
 1. Answer the question using ONLY the data provided above
 2. Be specific and cite relevant statistics
 3. 🚨 CRITICAL: If you see "GRAND TOTAL EMPLOYMENT" in the data context above, YOU MUST use that exact number when reporting total employment. DO NOT calculate the total by summing individual occupations from the table - use the provided GRAND TOTAL.
-4. 📊 LARGE RESULT SETS: If the data context indicates a large dataset (>100 items):
-   - Display up to 100 rows maximum in your response tables
-   - ALWAYS include this message at the end: "📥 Full dataset with all [N] items available via CSV download button below."
-   - Replace [N] with the actual total count from the data context
-   - The CSV export contains the complete dataset
+4. 📊 RESULT SET DISPLAY RULES:
+   - If dataset has ≤100 items: Show ALL items in your response table
+   - If dataset has >100 items: Show up to 100 rows, then add message: "📥 Full dataset with all [N] items available via CSV download button below."
+   - NEVER show only 10-15 items when you have 30+ items available
+   - The data context tells you how many items you have - use them ALL (up to 100 max)
 5. If you need to make inferences or use external knowledge, create a separate section labeled "External / Inferred Data"
 6. If the data is insufficient to fully answer the question, clearly state what information is missing
 7. Present your answer in a clear, structured format
