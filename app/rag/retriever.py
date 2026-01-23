@@ -1233,10 +1233,21 @@ Original query: "{original_query}"
                 computational_results['occupation_pattern_analysis'] = occupation_analysis
                 logger.info(f"Pattern analysis complete: {len(occupation_analysis.get('top_occupations', []))} occupations matched", show_ui=False)
                 
+                # CRITICAL FIX: Create filtered_dataframe for follow-up queries
+                # Extract all occupations that matched the pattern
+                matching_occupations = [occ for occ, _ in occupation_analysis.get('top_occupations', [])]
+                
+                if matching_occupations:
+                    # Filter dataframe to only matching occupations
+                    filtered_df = self.df[self.df['ONET job title'].isin(matching_occupations)].copy()
+                    results['filtered_dataframe'] = filtered_df.reset_index(drop=True)
+                    logger.info(f"✅ Created filtered_dataframe with {len(filtered_df)} rows from {len(matching_occupations)} matching occupations for follow-up queries", show_ui=True)
+                else:
+                    logger.warning("No matching occupations found in pattern analysis", show_ui=False)
+                
                 # If this is also an employment query, compute employment for matching occupations
-                if 'employment' in query_lower or 'total' in query_lower or 'how many' in query_lower:
-                    matching_occupations = [occ for occ, _ in occupation_analysis.get('top_occupations', [])]
-                    if matching_occupations and 'Employment' in self.df.columns:
+                if ('employment' in query_lower or 'total' in query_lower or 'how many' in query_lower) and matching_occupations:
+                    if 'Employment' in self.df.columns:
                         logger.info(f"Computing employment for {len(matching_occupations)} matching occupations", show_ui=False)
                         
                         try:
