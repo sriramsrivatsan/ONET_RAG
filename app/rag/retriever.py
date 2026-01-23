@@ -189,14 +189,19 @@ class HybridRetriever:
             # Sort by employment descending
             ind_occ_data = ind_occ_data.sort_values('Employment', ascending=False)
             
-            # Take top 30 combinations (covers all major occupations)
-            ind_occ_data = ind_occ_data.head(30)
+            # Store total count
+            total_combinations = len(ind_occ_data)
+            results['computational_results']['total_result_count'] = total_combinations
+            results['computational_results']['display_limit'] = 100
             
-            # Convert to semantic results format
+            # Show all combinations (LLM will be instructed to limit display if > 100)
+            logger.info(f"Found {total_combinations} industry-occupation combinations", show_ui=False)
+            
+            # Convert to semantic results format - all results
             for i, row in ind_occ_data.iterrows():
                 results['semantic_results'].append({
                     'text': f"Industry: {row['Industry title']}, Occupation: {row['ONET job title']}, Employment: {row['Employment']:.2f}k",
-                    'score': 1.0 - (i * 0.01),
+                    'score': 1.0 - (min(i, 99) * 0.01),  # Cap score decay at 100
                     'metadata': {
                         'industry_title': row['Industry title'],
                             'onet_job_title': row['ONET job title'],
@@ -205,7 +210,7 @@ class HybridRetriever:
                         }
                     })
                 
-                logger.info(f"Provided {len(results['semantic_results'])} industry-occupation combinations", show_ui=False)
+                logger.info(f"Provided all {len(results['semantic_results'])} industry-occupation combinations", show_ui=False)
                 
             else:
                 # For task queries, check if user wants INDUSTRY or OCCUPATION grouping
@@ -920,11 +925,17 @@ Original query: "{original_query}"
         # Store for CSV export
         results['filtered_dataframe'] = industry_summary.copy()
         
-        # Convert to semantic results format - one result per industry
-        for i, row in industry_summary.head(30).iterrows():
+        # Store total count for LLM to reference
+        total_industries = len(industry_summary)
+        results['computational_results']['total_result_count'] = total_industries
+        results['computational_results']['display_limit'] = 100
+        
+        # Convert to semantic results format - ALL industries (no limit)
+        # LLM will be instructed to inform user about CSV download if > 100
+        for i, row in industry_summary.iterrows():
             results['semantic_results'].append({
                 'text': f"Industry: {row['Industry title']}\nTotal Employment: {row['Employment']:.2f} thousand workers\nOccupations: {row['ONET job title']}\nTasks in Dataset: {row['Detailed job tasks']}",
-                'score': 1.0 - (i * 0.01),
+                'score': 1.0 - (min(i, 99) * 0.01),  # Cap score decay at 100
                 'metadata': {
                     'industry_title': row['Industry title'],
                     'employment': row['Employment'],
@@ -942,7 +953,7 @@ Original query: "{original_query}"
             'Detailed job tasks': 'Number of Tasks'
         })
         
-        logger.info(f"Created {len(results['semantic_results'])} industry ranking results", show_ui=False)
+        logger.info(f"Created {len(results['semantic_results'])} industry ranking results (all {total_industries} industries)", show_ui=False)
         
         return results
     
@@ -997,11 +1008,16 @@ Original query: "{original_query}"
         # Store for CSV export
         results['filtered_dataframe'] = occ_summary.copy()
         
-        # Convert to semantic results format - one result per occupation
-        for i, row in occ_summary.head(30).iterrows():
+        # Store total count for LLM to reference
+        total_occupations = len(occ_summary)
+        results['computational_results']['total_result_count'] = total_occupations
+        results['computational_results']['display_limit'] = 100
+        
+        # Convert to semantic results format - ALL occupations (no limit)
+        for i, row in occ_summary.iterrows():
             results['semantic_results'].append({
                 'text': f"Occupation: {row['ONET job title']}\nTotal Employment: {row['Employment']:.2f} thousand workers\nDistinct Tasks: {row['Detailed job tasks']}\nIndustries: {row['Industry title']}",
-                'score': 1.0 - (i * 0.01),
+                'score': 1.0 - (min(i, 99) * 0.01),  # Cap score decay at 100
                 'metadata': {
                     'onet_job_title': row['ONET job title'],
                     'employment': row['Employment'],

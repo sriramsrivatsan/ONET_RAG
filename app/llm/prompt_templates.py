@@ -292,6 +292,26 @@ Your responses should be:
                 context_parts.append("Each result represents ONE OCCUPATION with aggregated data")
                 context_parts.append("💼 OCCUPATION DATA: Total employment across all industries")
                 context_parts.append(f"📊 Total Occupations: {len(semantic_results)}")
+                
+                # CRITICAL: Add grand total IMMEDIATELY if available
+                if 'total_employment' in computational_results:
+                    grand_total = computational_results['total_employment']
+                    total_occs = computational_results.get('total_occupations', len(semantic_results))
+                    context_parts.append("")
+                    context_parts.append("=" * 80)
+                    context_parts.append("🚨 CRITICAL - READ THIS FIRST 🚨")
+                    context_parts.append("=" * 80)
+                    context_parts.append(f"⭐⭐⭐ GRAND TOTAL EMPLOYMENT: {float(grand_total):,.2f} thousand workers ⭐⭐⭐")
+                    context_parts.append(f"⭐⭐⭐ ACROSS ALL {total_occs} OCCUPATIONS ⭐⭐⭐")
+                    context_parts.append("")
+                    context_parts.append("🚫 DO NOT CALCULATE TOTAL BY SUMMING THE TABLE BELOW! 🚫")
+                    context_parts.append("🚫 THE TABLE SHOWS ONLY A SUBSET OF OCCUPATIONS! 🚫")
+                    context_parts.append("")
+                    context_parts.append("✅ ALWAYS USE THE GRAND TOTAL ABOVE ({:,.2f}k workers) ✅".format(float(grand_total)))
+                    context_parts.append("✅ THIS IS THE CORRECT, DE-DUPLICATED TOTAL ✅")
+                    context_parts.append("=" * 80)
+                    context_parts.append("")
+                
                 context_parts.append("✅ List ALL occupations with employment totals\n")
             else:
                 context_parts.append("⚠️ Each result below represents data from the dataset")
@@ -314,7 +334,30 @@ Your responses should be:
                 context_parts.append("   - Result: Each table row has DIFFERENT time and industry count")
                 context_parts.append("   - DO NOT use same value (e.g., 2.5 hrs or 10 industries) for all rows\n")
             
-            for i, result in enumerate(semantic_results[:30], 1):  # Show up to 30 tasks for diversity
+            # Determine how many results to show in detail
+            # For summaries (occupation/industry), show ALL
+            # For task-level data, limit to avoid overwhelming context
+            total_results = len(semantic_results)
+            
+            if is_occupation_summary or is_industry_summary:
+                # Show ALL for summaries
+                results_to_show = semantic_results
+                context_parts.append(f"📋 SHOWING ALL {total_results} RESULTS BELOW (complete list)")
+                if total_results > 100:
+                    context_parts.append(f"⚠️ IMPORTANT: This is a LARGE dataset with {total_results} items.")
+                    context_parts.append(f"📊 In your response, display up to 100 items in tables.")
+                    context_parts.append(f"🔽 ALWAYS include this message: 'Full dataset with all {total_results} items available via CSV download button below.'")
+                    context_parts.append(f"✅ The CSV export contains the complete {total_results} items.\n")
+            else:
+                # For task-level, show up to 100 for context efficiency
+                results_to_show = semantic_results[:100]
+                if total_results > 100:
+                    context_parts.append(f"📋 SHOWING FIRST 100 OF {total_results} TASK RESULTS")
+                    context_parts.append(f"🔽 Inform user: 'Showing first 100 tasks. Full dataset with all {total_results} tasks available via CSV download.'\n")
+                else:
+                    context_parts.append(f"📋 SHOWING ALL {total_results} TASK RESULTS\n")
+            
+            for i, result in enumerate(results_to_show, 1):
                 score = result.get('score', 0)
                 text = result.get('text', '')[:500]  # Truncate long texts
                 metadata = result.get('metadata', {})
@@ -755,10 +798,16 @@ DATA CONTEXT:
 INSTRUCTIONS:
 1. Answer the question using ONLY the data provided above
 2. Be specific and cite relevant statistics
-3. If you need to make inferences or use external knowledge, create a separate section labeled "External / Inferred Data"
-4. If the data is insufficient to fully answer the question, clearly state what information is missing
-5. Present your answer in a clear, structured format
-6. Include tables or lists if they help clarity
+3. 🚨 CRITICAL: If you see "GRAND TOTAL EMPLOYMENT" in the data context above, YOU MUST use that exact number when reporting total employment. DO NOT calculate the total by summing individual occupations from the table - use the provided GRAND TOTAL.
+4. 📊 LARGE RESULT SETS: If the data context indicates a large dataset (>100 items):
+   - Display up to 100 rows maximum in your response tables
+   - ALWAYS include this message at the end: "📥 Full dataset with all [N] items available via CSV download button below."
+   - Replace [N] with the actual total count from the data context
+   - The CSV export contains the complete dataset
+5. If you need to make inferences or use external knowledge, create a separate section labeled "External / Inferred Data"
+6. If the data is insufficient to fully answer the question, clearly state what information is missing
+7. Present your answer in a clear, structured format
+8. Include tables or lists if they help clarity
 
 ANSWER:"""
         
