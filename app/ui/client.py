@@ -265,7 +265,7 @@ class ClientView:
             total_docs = st.session_state.get('document_count', 1000)
             k_results = total_docs  # Retrieve all documents
             
-            st.info(f"ℹ️ Retrieving all {total_docs:,} documents for comprehensive analysis")
+            self._log_info(f"ℹ️ Retrieving all {total_docs:,} documents for comprehensive analysis")
         
         with col2:
             show_debug = st.checkbox("Show Debug Info", value=False)
@@ -342,7 +342,7 @@ class ClientView:
                     if hasattr(filtered_df, 'empty') and not filtered_df.empty:
                         # Reset index for follow-up query compatibility
                         st.session_state.filtered_dataset = filtered_df.reset_index(drop=True)
-                        logger.info(f"✅ Stored filtered dataset with {len(filtered_df)} rows for follow-up queries", show_ui=True)
+                        logger.info(f"✅ Stored filtered dataset with {len(filtered_df)} rows for follow-up queries", show_ui=False)
                     else:
                         logger.warning("Filtered dataframe is empty or not a DataFrame", show_ui=True)
                         st.session_state.filtered_dataset = None
@@ -379,7 +379,7 @@ class ClientView:
                             try:
                                 # Filter and reset index
                                 st.session_state.filtered_dataset = base_df.loc[row_indices].reset_index(drop=True)
-                                logger.info(f"✅ Created filtered dataset from {len(row_indices)} row indices", show_ui=True)
+                                logger.info(f"✅ Created filtered dataset from {len(row_indices)} row indices", show_ui=False)
                             except KeyError as e:
                                 logger.error(f"❌ Row index mismatch: {str(e)}", show_ui=True)
                                 logger.error(f"   Row indices requested: {row_indices[:10]}...", show_ui=False)

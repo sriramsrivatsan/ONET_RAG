@@ -72,7 +72,7 @@ class LaborMarketDictionary:
             # Build lookup indices
             self._build_indices()
             
-            logger.info(f"✓ Loaded labor market dictionary", show_ui=True)
+            logger.info(f"✓ Loaded labor market dictionary", show_ui=False)
             return True
             
         except FileNotFoundError:
@@ -143,9 +143,9 @@ class LaborMarketDictionary:
                             for term in skill.get('canonical_terms', []):
                                 self._skill_lookup[term.lower()] = skill
         
-        logger.info(f"Built indices: {len(self._industry_lookup)} industries, "
-                   f"{len(self._occupation_lookup)} occupations, "
-                   f"{len(self._skill_lookup)} skills", show_ui=False)
+        logger.info(f"Built dictionary lookup tables: {len(self._industry_lookup)} industry terms, "
+                   f"{len(self._occupation_lookup)} occupation terms, "
+                   f"{len(self._skill_lookup)} skill mappings (from YAML dictionary)", show_ui=False)
     
     def canonicalize_industry(self, industry_text: str, threshold: float = 0.85) -> Dict[str, Any]:
         """
@@ -217,17 +217,46 @@ class LaborMarketDictionary:
         
         # Check all skills in dictionary
         for skill_name, skill_data in self._skill_lookup.items():
-            # Check if any related tasks match
-            for related_task in skill_data.get('related_tasks', []):
-                if related_task.lower() in task_lower:
-                    confidence = 0.9  # High confidence for task match
-                    found_skills.append({
-                        'skill': skill_data.get('skill', skill_name),
-                        'confidence': confidence,
-                        'matched_task': related_task,
-                        'category': self._get_skill_category(skill_data.get('skill', skill_name))
-                    })
+            skill_matched = False
+            matched_term = None
+            confidence = 0.0
+            
+            # First check canonical terms (keywords) - more flexible
+            for canonical_term in skill_data.get('canonical_terms', []):
+                if canonical_term.lower() in task_lower:
+                    skill_matched = True
+                    matched_term = canonical_term
+                    confidence = 0.8  # Good confidence for canonical term match
                     break
+            
+            # If not matched yet, check related tasks
+            if not skill_matched:
+                for related_task in skill_data.get('related_tasks', []):
+                    # Extract key verb from related task (first word usually)
+                    task_words = related_task.lower().split()
+                    if len(task_words) > 0:
+                        key_verb = task_words[0]  # e.g., "analyze" from "Analyze data"
+                        if key_verb in task_lower:
+                            skill_matched = True
+                            matched_term = related_task
+                            confidence = 0.7  # Medium confidence for verb match
+                            break
+                    
+                    # Also try exact phrase match (original logic)
+                    if related_task.lower() in task_lower:
+                        skill_matched = True
+                        matched_term = related_task
+                        confidence = 0.9  # High confidence for exact match
+                        break
+            
+            # If skill matched, add it
+            if skill_matched:
+                found_skills.append({
+                    'skill': skill_data.get('skill', skill_name),
+                    'confidence': confidence,
+                    'matched_task': matched_term,
+                    'category': self._get_skill_category(skill_data.get('skill', skill_name))
+                })
         
         # Remove duplicates
         seen = set()

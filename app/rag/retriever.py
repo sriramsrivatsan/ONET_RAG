@@ -564,7 +564,7 @@ Original query: "{original_query}"
         # Filter to this specific occupation
         occupation_df = self.df[self.df['ONET job title'] == occupation_name].copy()
         
-        logger.info(f"Selected occupation: '{occupation_name}' with {len(occupation_df)} task entries", show_ui=True)
+        logger.info(f"Selected occupation: '{occupation_name}' with {len(occupation_df)} task entries", show_ui=False)
         
         # Get ALL distinct tasks for this occupation
         # Group by task description to get unique tasks with aggregated data
@@ -592,7 +592,7 @@ Original query: "{original_query}"
             results['filtered_dataframe'] = None
         else:
             results['filtered_dataframe'] = occupation_df.copy().reset_index(drop=True)  # Full data for follow-up
-            logger.info(f"✅ Set filtered_dataframe with {len(occupation_df)} rows for follow-up queries", show_ui=True)
+            logger.info(f"✅ Set filtered_dataframe with {len(occupation_df)} rows for follow-up queries", show_ui=False)
         
         # Also store aggregated version in computational results for CSV
         results['computational_results']['occupation_tasks_aggregated'] = task_groups.copy()
@@ -740,7 +740,7 @@ Original query: "{original_query}"
             'Hourly wage': 'mean'
         }).reset_index()
         
-        logger.info(f"Aggregated to {len(occ_summary)} unique occupations with correct employment totals", show_ui=True)
+        logger.info(f"Aggregated to {len(occ_summary)} unique occupations with correct employment totals", show_ui=False)
         
         occ_summary = occ_summary.sort_values('Employment', ascending=False)
         
@@ -777,7 +777,7 @@ Original query: "{original_query}"
         results['computational_results']['total_employment'] = grand_total_employment
         results['computational_results']['total_occupations'] = len(occ_summary)
         
-        logger.info(f"Created {len(results['semantic_results'])} occupation-level results with grand total: {grand_total_employment:.2f}k workers", show_ui=True)
+        logger.info(f"Created {len(results['semantic_results'])} occupation-level results with grand total: {grand_total_employment:.2f}k workers", show_ui=False)
         
         return results
     
@@ -1291,7 +1291,7 @@ Original query: "{original_query}"
                     filtered_df = self.df[self.df['ONET job title'].isin(matching_occupations)].copy()
                     # Store in computational_results (will be extracted later)
                     computational_results['filtered_dataframe'] = filtered_df.reset_index(drop=True)
-                    logger.info(f"✅ Created filtered_dataframe with {len(filtered_df)} rows from {len(matching_occupations)} matching occupations for follow-up queries", show_ui=True)
+                    logger.info(f"✅ Created filtered_dataframe with {len(filtered_df)} rows from {len(matching_occupations)} matching occupations for follow-up queries", show_ui=False)
                 else:
                     logger.warning("No matching occupations found in pattern analysis", show_ui=False)
                 
@@ -1397,7 +1397,7 @@ Original query: "{original_query}"
                         totals['total_employment'] = total_emp
                         totals['employment_note'] = f"Employment de-duplicated at occupation-industry level ({len(unique_occ_ind)} pairs)"
                         
-                        logger.info(f"Employment computed correctly: {len(unique_occ_ind)} occupation-industry pairs, total={total_emp:.2f}", show_ui=True)
+                        logger.info(f"Employment computed correctly: {len(unique_occ_ind)} occupation-industry pairs, total={total_emp:.2f}", show_ui=False)
                     else:
                         # Fallback: max per occupation if industry column not available
                         unique_employment_per_occ = df.groupby('ONET job title')['Employment'].max()
