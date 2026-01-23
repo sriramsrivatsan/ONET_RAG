@@ -404,7 +404,7 @@ class HybridRetriever:
             na_position='last'
         )
         
-        # Get diverse task sample: max 3 per occupation for diversity
+        # Get diverse task sample: max 5 per occupation for diversity
         task_details = []
         occ_counts = {}
         
@@ -412,7 +412,8 @@ class HybridRetriever:
             occ = row.get('ONET job title', 'Unknown')
             
             # Limit per occupation for diversity across occupations
-            if occ_counts.get(occ, 0) < 3:
+            # Increased from 3 to 5 to show more tasks
+            if occ_counts.get(occ, 0) < 5:
                 task_text = row.get('Detailed job tasks', '')
                 
                 # Create rich metadata
@@ -434,8 +435,8 @@ class HybridRetriever:
                 
                 occ_counts[occ] = occ_counts.get(occ, 0) + 1
             
-            # Stop at 30 tasks for reasonable response size
-            if len(task_details) >= 30:
+            # Increased from 30 to 100 for more comprehensive results
+            if len(task_details) >= 100:
                 break
         
         results['semantic_results'] = task_details
@@ -1564,7 +1565,7 @@ Original query: "{original_query}"
         """
         logger.info(f"Creating task details response from {len(matching_df)} rows", show_ui=False)
         
-        # Get diverse task sample: max 3 per occupation for diversity
+        # Get diverse task sample: max 5 per occupation for diversity
         task_details = []
         occ_counts = {}
         
@@ -1587,8 +1588,9 @@ Original query: "{original_query}"
         for idx, row in sorted_df.iterrows():
             occ = row.get('ONET job title', 'Unknown')
             
-            # Limit per occupation for diversity (max 3 tasks per occupation)
-            if occ_counts.get(occ, 0) < 3:
+            # Limit per occupation for diversity (max 5 tasks per occupation)
+            # Increased from 3 to 5 for better coverage
+            if occ_counts.get(occ, 0) < 5:
                 # Get time data
                 hours = row.get('Hours per week spent on task')
                 try:
@@ -1617,8 +1619,8 @@ Original query: "{original_query}"
                 })
                 occ_counts[occ] = occ_counts.get(occ, 0) + 1
             
-            # Limit total tasks to 30 for response size
-            if len(task_details) >= 30:
+            # Increased from 30 to 100 for more comprehensive task coverage
+            if len(task_details) >= 100:
                 break
         
         results['semantic_results'] = task_details
