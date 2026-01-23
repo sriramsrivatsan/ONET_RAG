@@ -298,26 +298,39 @@ Your responses should be:
                     total_occs = computational_results.get('total_occupations', len(semantic_results))
                     context_parts.append("")
                     context_parts.append("=" * 80)
-                    context_parts.append("🚨 CRITICAL - READ THIS FIRST 🚨")
+                    context_parts.append("🚨🚨🚨 CRITICAL INSTRUCTIONS - READ CAREFULLY 🚨🚨🚨")
                     context_parts.append("=" * 80)
-                    context_parts.append(f"⭐⭐⭐ GRAND TOTAL EMPLOYMENT: {float(grand_total):,.2f} thousand workers ⭐⭐⭐")
-                    context_parts.append(f"⭐⭐⭐ ACROSS ALL {total_occs} OCCUPATIONS ⭐⭐⭐")
-                    context_parts.append("")
-                    context_parts.append("🚫 DO NOT CALCULATE TOTAL BY SUMMING THE TABLE! 🚫")
-                    context_parts.append(f"🚫 YOU HAVE {total_occs} OCCUPATIONS - SHOW THEM ALL! 🚫")
-                    context_parts.append("")
-                    context_parts.append("✅ ALWAYS USE THE GRAND TOTAL ABOVE ({:,.2f}k workers) ✅".format(float(grand_total)))
-                    context_parts.append("✅ THIS IS THE CORRECT, DE-DUPLICATED TOTAL ✅")
+                    context_parts.append(f"")
+                    context_parts.append(f"YOU HAVE {total_occs} OCCUPATIONS IN THE DATA BELOW")
+                    context_parts.append(f"GRAND TOTAL EMPLOYMENT: {float(grand_total):,.2f} thousand workers")
+                    context_parts.append(f"")
+                    context_parts.append(f"MANDATORY REQUIREMENTS:")
+                    context_parts.append(f"1. CREATE A TABLE WITH THESE EXACT COLUMNS:")
+                    context_parts.append(f"   - Occupation (from the data)")
+                    context_parts.append(f"   - Employment (k) (from the data)")
+                    context_parts.append(f"   - Example Task (from the data)")
+                    context_parts.append(f"")
+                    context_parts.append(f"2. INCLUDE ALL {total_occs} OCCUPATIONS IN YOUR TABLE")
+                    context_parts.append(f"   DO NOT show only 10, 15, or 20 occupations")
+                    context_parts.append(f"   SHOW ALL {total_occs} occupations")
+                    context_parts.append(f"")
+                    context_parts.append(f"3. DO NOT ADD A 'MATCHING TASKS' COLUMN")
+                    context_parts.append(f"   DO NOT count tasks")
+                    context_parts.append(f"   DO NOT calculate percentages")
+                    context_parts.append(f"   JUST USE THE DATA PROVIDED")
+                    context_parts.append(f"")
+                    context_parts.append(f"4. FOR THE TOTAL EMPLOYMENT:")
+                    context_parts.append(f"   WRITE EXACTLY: 'Total Employment: {float(grand_total):,.2f} thousand workers across {total_occs} occupations'")
+                    context_parts.append(f"   DO NOT calculate the total by adding up the table")
+                    context_parts.append(f"   USE THE NUMBER ABOVE: {float(grand_total):,.2f}k")
+                    context_parts.append(f"")
+                    context_parts.append(f"5. SORT BY EMPLOYMENT (HIGHEST FIRST)")
+                    context_parts.append(f"   The data below is already sorted correctly")
+                    context_parts.append(f"   Present it in the same order")
+                    context_parts.append(f"")
                     context_parts.append("=" * 80)
                     context_parts.append("")
                     
-                    # Clear instructions for display
-                    if total_occs > 100:
-                        context_parts.append(f"📊 DISPLAY INSTRUCTIONS: You have {total_occs} occupations total")
-                        context_parts.append(f"✅ Show up to 100 occupations in your table")
-                        context_parts.append(f"📊 Note: CSV download will be provided for all {total_occs} occupations")
-                    else:
-                        context_parts.append(f"✅ Show ALL {total_occs} occupations in your table\n")
                 else:
                     # No grand total available, just show count
                     context_parts.append(f"✅ Show ALL {len(semantic_results)} occupations in your table\n")
@@ -811,17 +824,20 @@ DATA CONTEXT:
 INSTRUCTIONS:
 1. Answer the question using ONLY the data provided above
 2. Be specific and cite relevant statistics
-3. 🚨 CRITICAL: If you see "GRAND TOTAL EMPLOYMENT" in the data context above, YOU MUST use that exact number when reporting total employment. DO NOT calculate the total by summing individual occupations from the table - use the provided GRAND TOTAL.
-4. 📊 RESULT SET DISPLAY RULES:
-   - If dataset has ≤100 items: Show ALL items in your response table
-   - If dataset has >100 items: Show up to 100 rows in your table
-   - NEVER show only 10-15 items when you have 30+ items available
-   - The data context tells you how many items you have - use them ALL (up to 100 max)
-   - CSV download will be provided automatically for full dataset
+3. 🚨 CRITICAL FOR OCCUPATION/INDUSTRY SUMMARIES:
+   - If you see instructions above saying "YOU HAVE N OCCUPATIONS" - follow them EXACTLY
+   - DO NOT create your own columns (like "Matching Tasks")
+   - DO NOT count or calculate anything yourself
+   - PRESENT the data exactly as provided
+   - USE the exact total employment number given in the instructions
+   - SHOW ALL items listed (not just a subset)
+4. 📊 TABLE FORMAT:
+   - Use ONLY the columns specified in the instructions above
+   - Do NOT add extra columns
+   - Include ALL rows of data provided
+   - Present in the order given (already sorted correctly)
 5. If you need to make inferences or use external knowledge, create a separate section labeled "External / Inferred Data"
 6. If the data is insufficient to fully answer the question, clearly state what information is missing
-7. Present your answer in a clear, structured format
-8. Include tables or lists if they help clarity
 
 ANSWER:"""
         
