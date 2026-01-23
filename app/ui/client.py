@@ -199,10 +199,35 @@ class ClientView:
                     ]
                     logger.info(f"Found {len(row_indices)} row indices in semantic_results", show_ui=False)
                     
-                    if row_indices and st.session_state.dataframe is not None:
-                        # CRITICAL FIX: Reset index to avoid index mismatch in follow-up queries
-                        st.session_state.filtered_dataset = st.session_state.dataframe.loc[row_indices].reset_index(drop=True)
-                        logger.info(f"✅ Created filtered dataset from {len(row_indices)} row indices", show_ui=True)
+                    if row_indices:
+                        # CRITICAL FIX: For iterative follow-up queries, use the CURRENT filtered_dataset
+                        # not the original dataframe, because row_indices are from the current context
+                        
+                        # Check if we're in a follow-up context (filtered_dataset exists)
+                        if st.session_state.get('filtered_dataset') is not None and not st.session_state.filtered_dataset.empty:
+                            # This is a follow-up on a follow-up - use current filtered_dataset
+                            base_df = st.session_state.filtered_dataset
+                            logger.info(f"Using current filtered_dataset as base ({len(base_df)} rows) for iterative follow-up", show_ui=False)
+                        elif st.session_state.dataframe is not None:
+                            # First follow-up - use original dataframe
+                            base_df = st.session_state.dataframe
+                            logger.info(f"Using original dataframe as base ({len(base_df)} rows) for first follow-up", show_ui=False)
+                        else:
+                            logger.warning("❌ No base dataframe available for follow-up query!", show_ui=True)
+                            st.session_state.filtered_dataset = None
+                            base_df = None
+                        
+                        if base_df is not None:
+                            try:
+                                # Filter and reset index
+                                st.session_state.filtered_dataset = base_df.loc[row_indices].reset_index(drop=True)
+                                logger.info(f"✅ Created filtered dataset from {len(row_indices)} row indices", show_ui=True)
+                            except KeyError as e:
+                                logger.error(f"❌ Row index mismatch: {str(e)}", show_ui=True)
+                                logger.error(f"   Row indices requested: {row_indices[:10]}...", show_ui=False)
+                                logger.error(f"   Available indices in base_df: {base_df.index.tolist()[:10]}...", show_ui=False)
+                                # Fallback: use base_df as-is
+                                st.session_state.filtered_dataset = base_df.reset_index(drop=True)
                     else:
                         logger.warning("❌ No row indices found in semantic results or dataframe not available - follow-up queries won't work!", show_ui=True)
                         st.session_state.filtered_dataset = None
