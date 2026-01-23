@@ -684,13 +684,31 @@ Original query: "{original_query}"
         
         logger.info(f"Creating occupation summary from {len(matching_df)} rows", show_ui=False)
         
-        occ_summary = matching_df.groupby('ONET job title').agg({
-            'Employment': 'sum',
-            'Industry title': 'nunique',
-            'Detailed job tasks': lambda x: '; '.join(x.unique()[:3]),
+        # CRITICAL FIX: Avoid double-counting employment across multiple tasks
+        # The dataset has multiple rows per (occupation, industry) - one per task
+        # The Employment value is the same for all tasks of the same (occupation, industry)
+        # So we need to de-duplicate before summing
+        
+        # Step 1: Get unique (occupation, industry) pairs with their employment
+        unique_occ_ind = matching_df.groupby(['ONET job title', 'Industry title']).agg({
+            'Employment': 'first',  # Take first value (they're all the same for same occ-industry)
+            'Hours per week spent on task': 'mean',  # Average across tasks
+            'Hourly wage': 'mean',
+            'Detailed job tasks': lambda x: list(x.unique())  # Collect unique tasks
+        }).reset_index()
+        
+        logger.info(f"De-duplicated to {len(unique_occ_ind)} unique occupation-industry pairs", show_ui=False)
+        
+        # Step 2: Now sum employment by occupation (no more double-counting!)
+        occ_summary = unique_occ_ind.groupby('ONET job title').agg({
+            'Employment': 'sum',  # Now this is correct - summing across industries, not tasks
+            'Industry title': 'nunique',  # Count unique industries
+            'Detailed job tasks': lambda x: '; '.join([task for sublist in x for task in sublist][:3]),  # Flatten and take first 3
             'Hours per week spent on task': 'mean',
             'Hourly wage': 'mean'
         }).reset_index()
+        
+        logger.info(f"Aggregated to {len(occ_summary)} unique occupations with correct employment totals", show_ui=True)
         
         occ_summary = occ_summary.sort_values('Employment', ascending=False)
         
@@ -1292,23 +1310,30 @@ Original query: "{original_query}"
             
             if 'ONET job title' in df.columns:
                 try:
-                    # Get maximum employment per occupation (represents total occupation employment)
-                    # Use .max() because employment data is split by industry,
-                    # and the max value represents the occupation's total employment
-                    unique_employment_per_occ = df.groupby('ONET job title')['Employment'].max()
+                    # CRITICAL FIX: De-duplicate by (occupation, industry) before summing
+                    # The dataset has one row per (occupation, task, industry) combination
+                    # Employment is at the occupation-industry level, repeated for each task
+                    # We must de-duplicate to avoid counting the same workers multiple times
                     
-                    # Ensure proper float conversion
-                    total_emp = float(unique_employment_per_occ.sum())
+                    if 'Industry title' in df.columns:
+                        # De-duplicate by occupation-industry pairs (correct approach)
+                        unique_occ_ind = df.groupby(['ONET job title', 'Industry title'])['Employment'].first()
+                        total_emp = float(unique_occ_ind.sum())
+                        
+                        totals['total_employment'] = total_emp
+                        totals['employment_note'] = f"Employment de-duplicated at occupation-industry level ({len(unique_occ_ind)} pairs)"
+                        
+                        logger.info(f"Employment computed correctly: {len(unique_occ_ind)} occupation-industry pairs, total={total_emp:.2f}", show_ui=True)
+                    else:
+                        # Fallback: max per occupation if industry column not available
+                        unique_employment_per_occ = df.groupby('ONET job title')['Employment'].max()
+                        total_emp = float(unique_employment_per_occ.sum())
+                        
+                        totals['total_employment'] = total_emp
+                        totals['employment_note'] = f"Employment aggregated at occupation level ({len(unique_employment_per_occ)} occupations) - may be approximate"
+                        
+                        logger.warning(f"Industry column not available - using max per occupation (may not be exact)", show_ui=False)
                     
-                    totals['total_employment'] = total_emp
-                    totals['employment_note'] = f"Employment aggregated at occupation level ({len(unique_employment_per_occ)} occupations)"
-                    
-                    # Also include task-level sum for reference (incorrect but informative)
-                    task_level_sum = float(df['Employment'].sum())
-                    totals['task_level_employment_sum'] = task_level_sum
-                    totals['warning'] = "Note: task_level_employment_sum is for reference only and should NOT be used"
-                    
-                    logger.info(f"Employment computed: {len(unique_employment_per_occ)} occupations, total={total_emp:.2f}", show_ui=False)
                 except Exception as e:
                     logger.error(f"Error computing employment totals: {str(e)}", show_ui=False)
                     totals['total_employment'] = 0.0

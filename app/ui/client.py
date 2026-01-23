@@ -704,11 +704,22 @@ class ClientView:
         try:
             # Total employment
             if 'total' in query_lower and 'employment' in query_lower:
-                total_emp = df['Employment'].sum()
+                # CRITICAL FIX: De-duplicate by (occupation, industry) before summing
+                # to avoid counting the same workers multiple times across different tasks
+                if 'ONET job title' in df.columns and 'Industry title' in df.columns:
+                    # De-duplicate by occupation-industry pairs
+                    unique_pairs = df.groupby(['ONET job title', 'Industry title'])['Employment'].first().reset_index()
+                    total_emp = unique_pairs['Employment'].sum()
+                    logger.info(f"De-duplicated from {len(df)} rows to {len(unique_pairs)} occupation-industry pairs for employment calculation", show_ui=False)
+                else:
+                    # Fallback if columns not available
+                    total_emp = df['Employment'].sum()
+                    logger.warning("Could not de-duplicate employment - columns not found", show_ui=False)
+                
                 answer = f"**Total Employment:** {total_emp:,.2f} thousand workers ({total_emp*1000:,.0f} people)"
                 return {
                     'answer': answer,
-                    'csv_data': pd.DataFrame({'Metric': ['Total Employment'], 'Value': [total_emp]})
+                    'csv_data': pd.DataFrame({'Metric': ['Total Employment (thousands)'], 'Value': [total_emp]})
                 }
             
             # Count records
