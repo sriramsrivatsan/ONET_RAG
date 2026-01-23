@@ -324,6 +324,24 @@ class ClientView:
                         self._add_log("✅ Response copied to clipboard", "success")
                         st.success("✅ Copied!", icon="📋")
                 
+                # Check if there's result CSV data (occupation or industry summary)
+                computational_results = retrieval_results.get('computational_results', {})
+                result_csv_df = None
+                
+                if 'occupation_employment' in computational_results:
+                    result_csv_df = computational_results['occupation_employment']
+                elif 'industry_employment' in computational_results:
+                    result_csv_df = computational_results['industry_employment']
+                
+                # Display inline result CSV download if available
+                if result_csv_df is not None and isinstance(result_csv_df, pd.DataFrame) and not result_csv_df.empty:
+                    # Track query number for sequential naming
+                    if 'query_counter' not in st.session_state:
+                        st.session_state.query_counter = 0
+                    st.session_state.query_counter += 1
+                    
+                    self._display_inline_result_csv(result_csv_df, st.session_state.query_counter)
+                
                 # Store results for follow-up functionality
                 st.session_state.last_query = query
                 st.session_state.last_query_results = response
@@ -1007,6 +1025,32 @@ class ClientView:
             mime="text/csv",
             key=f"download_{prefix}_{timestamp}"
         )
+    
+    def _display_inline_result_csv(self, result_df: pd.DataFrame, query_number: int):
+        """Display inline CSV download icon for result data only"""
+        csv_buffer = StringIO()
+        result_df.to_csv(csv_buffer, index=False)
+        csv_str = csv_buffer.getvalue()
+        
+        filename = f"query{query_number}.csv"
+        
+        # Large download icon inline with response
+        st.markdown("---")
+        col1, col2 = st.columns([0.8, 0.2])
+        
+        with col1:
+            st.markdown("**📥 Download query results as CSV**")
+        
+        with col2:
+            st.download_button(
+                label="📥",
+                data=csv_str,
+                file_name=filename,
+                mime="text/csv",
+                key=f"download_result_query_{query_number}",
+                help=f"Download these {len(result_df)} results as {filename}",
+                use_container_width=True
+            )
     
     def _process_enhanced_rag(self):
         """Process enhanced RAG with external data (stores in session state)"""

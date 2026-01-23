@@ -314,8 +314,8 @@ Your responses should be:
                     # Clear instructions for display
                     if total_occs > 100:
                         context_parts.append(f"📊 DISPLAY INSTRUCTIONS: You have {total_occs} occupations total")
-                        context_parts.append(f"✅ Show ALL {total_occs} occupations in your table (yes, include ALL of them)")
-                        context_parts.append(f"📥 After table, add: 'Full dataset with all {total_occs} occupations available via CSV download below.'")
+                        context_parts.append(f"✅ Show up to 100 occupations in your table")
+                        context_parts.append(f"📊 Note: CSV download will be provided for all {total_occs} occupations")
                     else:
                         context_parts.append(f"✅ Show ALL {total_occs} occupations in your table\n")
                 else:
@@ -360,14 +360,13 @@ Your responses should be:
                 if total_results > 100:
                     context_parts.append(f"⚠️ IMPORTANT: This is a LARGE dataset with {total_results} items.")
                     context_parts.append(f"📊 In your response, display up to 100 items in tables.")
-                    context_parts.append(f"🔽 ALWAYS include this message: 'Full dataset with all {total_results} items available via CSV download button below.'")
-                    context_parts.append(f"✅ The CSV export contains the complete {total_results} items.\n")
+                    context_parts.append(f"📊 Note: CSV download will be provided automatically for all {total_results} items.\n")
             else:
                 # For task-level, show up to 100 for context efficiency
                 results_to_show = semantic_results[:100]
                 if total_results > 100:
                     context_parts.append(f"📋 SHOWING FIRST 100 OF {total_results} TASK RESULTS")
-                    context_parts.append(f"🔽 Inform user: 'Showing first 100 tasks. Full dataset with all {total_results} tasks available via CSV download.'\n")
+                    context_parts.append(f"📊 Note: CSV download will be provided for all {total_results} tasks.\n")
                 else:
                     context_parts.append(f"📋 SHOWING ALL {total_results} TASK RESULTS\n")
             
@@ -815,9 +814,10 @@ INSTRUCTIONS:
 3. 🚨 CRITICAL: If you see "GRAND TOTAL EMPLOYMENT" in the data context above, YOU MUST use that exact number when reporting total employment. DO NOT calculate the total by summing individual occupations from the table - use the provided GRAND TOTAL.
 4. 📊 RESULT SET DISPLAY RULES:
    - If dataset has ≤100 items: Show ALL items in your response table
-   - If dataset has >100 items: Show up to 100 rows, then add message: "📥 Full dataset with all [N] items available via CSV download button below."
+   - If dataset has >100 items: Show up to 100 rows in your table
    - NEVER show only 10-15 items when you have 30+ items available
    - The data context tells you how many items you have - use them ALL (up to 100 max)
+   - CSV download will be provided automatically for full dataset
 5. If you need to make inferences or use external knowledge, create a separate section labeled "External / Inferred Data"
 6. If the data is insufficient to fully answer the question, clearly state what information is missing
 7. Present your answer in a clear, structured format
