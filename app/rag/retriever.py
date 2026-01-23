@@ -1251,12 +1251,25 @@ Original query: "{original_query}"
                         logger.info(f"Computing employment for {len(matching_occupations)} matching occupations", show_ui=False)
                         
                         try:
-                            # Get employment for matching occupations only
-                            # Use .max() to get the highest employment value per occupation
-                            # (represents the occupation's total employment across industries)
-                            matching_occ_employment = self.df[
-                                self.df['ONET job title'].isin(matching_occupations)
-                            ].groupby('ONET job title')['Employment'].max()
+                            # CRITICAL FIX: De-duplicate by (occupation, industry) before computing employment
+                            # OLD METHOD (WRONG): matching_occ_employment = df.groupby('ONET job title')['Employment'].max()
+                            # This double-counts workers across multiple tasks in the same occupation-industry
+                            
+                            # NEW METHOD (CORRECT): De-duplicate by (occupation, industry) first
+                            matching_df = self.df[self.df['ONET job title'].isin(matching_occupations)]
+                            
+                            if 'Industry title' in matching_df.columns:
+                                # Step 1: De-duplicate by (occupation, industry) - take first employment value
+                                unique_occ_ind = matching_df.groupby(['ONET job title', 'Industry title'])['Employment'].first()
+                                
+                                # Step 2: Sum by occupation across industries
+                                matching_occ_employment = unique_occ_ind.groupby(level=0).sum()
+                                
+                                logger.info(f"De-duplicated employment calculation: {len(unique_occ_ind)} unique occupation-industry pairs", show_ui=False)
+                            else:
+                                # Fallback if Industry column not available
+                                matching_occ_employment = matching_df.groupby('ONET job title')['Employment'].max()
+                                logger.warning("Industry column not available - using max per occupation (may be approximate)", show_ui=False)
                             
                             # Ensure we have valid data
                             if len(matching_occ_employment) > 0:
@@ -1277,7 +1290,7 @@ Original query: "{original_query}"
                                     'total_employment': total_employment,
                                     'occupations_count': len(matching_occupations),
                                     'per_occupation': per_occupation_dict,
-                                    'note': 'Employment aggregated at occupation level, not task level'
+                                    'note': 'Employment de-duplicated at occupation-industry level'
                                 }
                                 logger.info(f"Employment for matching occupations: {total_employment:.2f} across {len(matching_occupations)} occupations", show_ui=False)
                             else:
@@ -1622,45 +1635,6 @@ Original query: "{original_query}"
         
         return results
     
-    def _create_occupation_summary_response(
-        self,
-        matching_df: pd.DataFrame,
-        results: Dict[str, Any],
-        query_lower: str
-    ) -> Dict[str, Any]:
-        """Create occupation-level aggregation response"""
-        logger.info(f"Creating occupation summary from {len(matching_df)} rows", show_ui=False)
-        
-        occ_summary = matching_df.groupby('ONET job title').agg({
-            'Employment': 'sum',
-            'Industry title': 'nunique',
-            'Detailed job tasks': lambda x: '; '.join(x.unique()[:3])
-        }).reset_index()
-        
-        occ_summary = occ_summary.sort_values('Employment', ascending=False)
-        
-        results['filtered_dataframe'] = matching_df.copy().reset_index(drop=True)
-        
-        for i, row in occ_summary.iterrows():
-            results['semantic_results'].append({
-                'text': f"Occupation: {row['ONET job title']}\nTotal Employment: {row['Employment']:.2f}k workers\nNumber of Industries: {row['Industry title']}\nSample Tasks: {row['Detailed job tasks'][:200]}...",
-                'score': 1.0 - (i * 0.01),
-                'metadata': {
-                    'onet_job_title': row['ONET job title'],
-                    'employment': row['Employment'],
-                    'industry_count': row['Industry title'],
-                    'sample_tasks': row['Detailed job tasks']
-                }
-            })
-        
-        results['computational_results']['occupation_employment'] = occ_summary.rename(columns={
-            'ONET job title': 'Occupation',
-            'Employment': 'Total Employment (thousands)',
-            'Industry title': 'Number of Industries',
-            'Detailed job tasks': 'Sample Tasks'
-        })
-        
-        return results
     
     def _compute_time_analysis(
         self,
