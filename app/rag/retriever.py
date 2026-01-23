@@ -340,13 +340,32 @@ class HybridRetriever:
             logger.debug(f"Computed {len(results['computational_results'])} aggregations")
         
         # Filter dataframe based on semantic results if needed
+        # CRITICAL FIX: Only set filtered_dataframe if not already set by response functions
+        # Response functions (like _create_occupation_summary_response) set this correctly
+        # We should NOT overwrite it with row_index extraction which may fail
         if results['semantic_results'] and strategy['use_pandas']:
-            filtered_df = self._filter_dataframe_by_results(results['semantic_results'])
-            results['filtered_dataframe'] = filtered_df
-            if filtered_df is not None and not filtered_df.empty:
-                results['metadata']['filtered_rows'] = len(filtered_df)
+            # Check if filtered_dataframe is already set and valid
+            existing_df = results.get('filtered_dataframe')
+            has_valid_df = (
+                existing_df is not None and 
+                not (isinstance(existing_df, pd.DataFrame) and existing_df.empty)
+            )
+            
+            if has_valid_df:
+                # Already has valid filtered_dataframe - don't overwrite
+                logger.debug(f"Filtered dataframe already set ({len(existing_df)} rows) - not overwriting", show_ui=False)
+                results['metadata']['filtered_rows'] = len(existing_df)
             else:
-                results['metadata']['filtered_rows'] = 0
+                # Try to create from semantic results
+                logger.debug("Attempting to create filtered_dataframe from semantic results", show_ui=False)
+                filtered_df = self._filter_dataframe_by_results(results['semantic_results'])
+                results['filtered_dataframe'] = filtered_df
+                if filtered_df is not None and not filtered_df.empty:
+                    results['metadata']['filtered_rows'] = len(filtered_df)
+                    logger.debug(f"Created filtered_dataframe with {len(filtered_df)} rows from semantic results", show_ui=False)
+                else:
+                    results['metadata']['filtered_rows'] = 0
+                    logger.warning("Could not create filtered_dataframe from semantic results", show_ui=False)
         
         results['metadata']['total_results'] = (
             len(results['semantic_results']) +
