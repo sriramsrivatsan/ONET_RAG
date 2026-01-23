@@ -548,8 +548,24 @@ Original query: "{original_query}"
         
         logger.info(f"Found {len(task_groups)} DISTINCT tasks for {occupation_name}", show_ui=False)
         
-        # Store filtered dataframe for CSV export
-        results['filtered_dataframe'] = task_groups.copy().reset_index(drop=True)
+        # Store BOTH aggregated tasks (for display) and original occupation data (for follow-up queries)
+        # For CSV export and LLM display, use aggregated task_groups
+        
+        # Safety check: ensure occupation_df is a valid DataFrame
+        if not isinstance(occupation_df, pd.DataFrame):
+            logger.error(f"occupation_df is not a DataFrame! Type: {type(occupation_df)}", show_ui=True)
+            results['filtered_dataframe'] = None
+        elif occupation_df.empty:
+            logger.warning(f"occupation_df is empty - no data to store for follow-up", show_ui=True)
+            results['filtered_dataframe'] = None
+        else:
+            results['filtered_dataframe'] = occupation_df.copy().reset_index(drop=True)  # Full data for follow-up
+            logger.info(f"✅ Set filtered_dataframe with {len(occupation_df)} rows for follow-up queries", show_ui=True)
+        
+        # Also store aggregated version in computational results for CSV
+        results['computational_results']['occupation_tasks_aggregated'] = task_groups.copy()
+        
+        logger.info(f"Stored {len(occupation_df)} original task entries", show_ui=False)
         
         # Convert ALL tasks to semantic results (no limit!)
         for i, row in task_groups.iterrows():

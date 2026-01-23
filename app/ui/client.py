@@ -172,20 +172,43 @@ class ClientView:
                 st.session_state.show_post_query_buttons = True
                 
                 # Store filtered dataset if available
-                if response.get('retrieval_results', {}).get('filtered_dataframe') is not None:
-                    # Reset index for follow-up query compatibility
-                    st.session_state.filtered_dataset = response['retrieval_results']['filtered_dataframe'].reset_index(drop=True)
-                elif response.get('retrieval_results', {}).get('semantic_results'):
+                logger.info("Attempting to store filtered dataset for follow-up queries", show_ui=False)
+                
+                retrieval_results = response.get('retrieval_results', {})
+                logger.info(f"Retrieval results keys: {list(retrieval_results.keys())}", show_ui=False)
+                
+                if retrieval_results.get('filtered_dataframe') is not None:
+                    filtered_df = retrieval_results['filtered_dataframe']
+                    logger.info(f"Found filtered_dataframe: type={type(filtered_df)}, empty={filtered_df.empty if hasattr(filtered_df, 'empty') else 'N/A'}, shape={filtered_df.shape if hasattr(filtered_df, 'shape') else 'N/A'}", show_ui=False)
+                    
+                    if hasattr(filtered_df, 'empty') and not filtered_df.empty:
+                        # Reset index for follow-up query compatibility
+                        st.session_state.filtered_dataset = filtered_df.reset_index(drop=True)
+                        logger.info(f"✅ Stored filtered dataset with {len(filtered_df)} rows for follow-up queries", show_ui=True)
+                    else:
+                        logger.warning("Filtered dataframe is empty or not a DataFrame", show_ui=True)
+                        st.session_state.filtered_dataset = None
+                elif retrieval_results.get('semantic_results'):
+                    logger.info("No filtered_dataframe, trying to extract from semantic_results", show_ui=False)
                     # Extract row indices from semantic results and filter dataframe
-                    semantic_results = response['retrieval_results']['semantic_results']
+                    semantic_results = retrieval_results['semantic_results']
                     row_indices = [
                         r['metadata'].get('row_index')
                         for r in semantic_results
                         if 'row_index' in r.get('metadata', {})
                     ]
+                    logger.info(f"Found {len(row_indices)} row indices in semantic_results", show_ui=False)
+                    
                     if row_indices and st.session_state.dataframe is not None:
                         # CRITICAL FIX: Reset index to avoid index mismatch in follow-up queries
                         st.session_state.filtered_dataset = st.session_state.dataframe.loc[row_indices].reset_index(drop=True)
+                        logger.info(f"✅ Created filtered dataset from {len(row_indices)} row indices", show_ui=True)
+                    else:
+                        logger.warning("❌ No row indices found in semantic results or dataframe not available - follow-up queries won't work!", show_ui=True)
+                        st.session_state.filtered_dataset = None
+                else:
+                    logger.warning("❌ No filtered dataframe or semantic results available - follow-up queries won't work!", show_ui=True)
+                    st.session_state.filtered_dataset = None
                 
                 # Display CSV if available
                 if response.get('csv_data') is not None:
@@ -491,8 +514,45 @@ class ClientView:
         st.subheader("🔄 Follow-up Query")
         st.info("💡 This query will only search within the results from your previous query.")
         
-        if st.session_state.filtered_dataset is None or st.session_state.filtered_dataset.empty:
-            st.warning("⚠️ No filtered dataset available from previous query. Starting fresh query instead.")
+        if st.session_state.filtered_dataset is None:
+            st.error("⚠️ No filtered dataset available from previous query.")
+            st.info("**Why this happened:** The previous query didn't produce a filterable dataset for follow-up queries. This usually happens when the query returns aggregated summaries instead of raw data.")
+            st.info("**Solution:** Try a different type of query first (e.g., 'What tasks involve creating documents?'), then use follow-up queries to refine the results.")
+            
+            # Debug info
+            if st.session_state.get('last_query_results'):
+                with st.expander("🔍 Debug Info - Technical Details"):
+                    st.write("**Last Query:**", st.session_state.get('last_query', 'N/A'))
+                    st.write("**Response Keys:**", list(st.session_state.last_query_results.keys()))
+                    if 'retrieval_results' in st.session_state.last_query_results:
+                        retrieval = st.session_state.last_query_results['retrieval_results']
+                        st.write("**Retrieval Results Keys:**", list(retrieval.keys()))
+                        if 'filtered_dataframe' in retrieval:
+                            fd = retrieval['filtered_dataframe']
+                            st.write("**Filtered Dataframe:**")
+                            st.write(f"  - Type: {type(fd)}")
+                            st.write(f"  - Is None: {fd is None}")
+                            if fd is not None:
+                                st.write(f"  - Has 'empty' attr: {hasattr(fd, 'empty')}")
+                                if hasattr(fd, 'empty'):
+                                    st.write(f"  - Is empty: {fd.empty}")
+                                    st.write(f"  - Shape: {fd.shape}")
+                        else:
+                            st.write("❌ No 'filtered_dataframe' key in retrieval_results")
+                        
+                        if 'semantic_results' in retrieval:
+                            sem_results = retrieval['semantic_results']
+                            st.write(f"**Semantic Results:** {len(sem_results)} results")
+                            if len(sem_results) > 0:
+                                st.write(f"  - First result metadata keys: {list(sem_results[0].get('metadata', {}).keys())}")
+                                st.write(f"  - Has row_index: {'row_index' in sem_results[0].get('metadata', {})}")
+                    else:
+                        st.write("❌ No 'retrieval_results' in response")
+            
+            return
+        
+        if st.session_state.filtered_dataset.empty:
+            st.warning("⚠️ Filtered dataset is empty.")
             return
         
         dataset_size = len(st.session_state.filtered_dataset)
