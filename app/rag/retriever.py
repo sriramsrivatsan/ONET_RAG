@@ -658,13 +658,31 @@ Original query: "{original_query}"
         
         logger.info(f"Creating industry summary from {len(matching_df)} rows", show_ui=False)
         
-        ind_summary = matching_df.groupby('Industry title').agg({
-            'Employment': 'sum',
-            'ONET job title': 'nunique',
-            'Detailed job tasks': lambda x: len(x),
+        # CRITICAL FIX: Avoid double-counting employment across multiple tasks
+        # The dataset has multiple rows per (occupation, industry) - one per task
+        # The Employment value is the same for all tasks of the same (occupation, industry)
+        # So we need to de-duplicate before summing
+        
+        # Step 1: Get unique (industry, occupation) pairs with their employment
+        unique_ind_occ = matching_df.groupby(['Industry title', 'ONET job title']).agg({
+            'Employment': 'first',  # Take first value (they're all the same for same industry-occupation)
+            'Hours per week spent on task': 'mean',  # Average across tasks
+            'Hourly wage': 'mean',
+            'Detailed job tasks': lambda x: list(x.unique())  # Collect unique tasks
+        }).reset_index()
+        
+        logger.info(f"De-duplicated to {len(unique_ind_occ)} unique industry-occupation pairs", show_ui=False)
+        
+        # Step 2: Now sum employment by industry (no more double-counting!)
+        ind_summary = unique_ind_occ.groupby('Industry title').agg({
+            'Employment': 'sum',  # Now this is correct - summing across occupations, not tasks
+            'ONET job title': 'nunique',  # Count unique occupations
+            'Detailed job tasks': lambda x: sum(len(tasks) for tasks in x),  # Total tasks across occupations
             'Hours per week spent on task': 'mean',
             'Hourly wage': 'mean'
         }).reset_index()
+        
+        logger.info(f"Aggregated to {len(ind_summary)} unique industries with correct employment totals", show_ui=False)
         
         ind_summary = ind_summary.sort_values('Employment', ascending=False)
         
@@ -695,6 +713,12 @@ Original query: "{original_query}"
             'Hourly wage': 'Avg Hourly Wage'
         })
         
+        # CRITICAL FIX: Calculate and store GRAND TOTAL across all industries
+        # This ensures the LLM has the correct total, not just individual industry totals
+        grand_total_employment = float(ind_summary['Employment'].sum())
+        results['computational_results']['total_employment'] = grand_total_employment
+        results['computational_results']['total_industries'] = len(ind_summary)
+        
         # Calculate industry proportions
         industry_prop_results = self._compute_industry_proportions(
             matching_df,
@@ -703,7 +727,7 @@ Original query: "{original_query}"
         if industry_prop_results:
             results['computational_results']['industry_proportions'] = industry_prop_results
         
-        logger.info(f"Created {len(results['semantic_results'])} industry-level results", show_ui=False)
+        logger.info(f"Created {len(results['semantic_results'])} industry-level results with grand total: {grand_total_employment:.2f}k workers", show_ui=False)
         
         return results
     
