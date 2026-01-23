@@ -118,36 +118,78 @@ class ClientView:
                 st.caption("No logs yet. Logs will appear here as you use the system.")
     
     @staticmethod
-    def _copy_to_clipboard_button(text: str, button_key: str, label: str = "📋 Copy"):
-        """Create a copy to clipboard button using Streamlit's native approach"""
-        # Create a unique container for this button
-        col1, col2 = st.columns([0.9, 0.1])
+    def _create_copy_button(text: str, button_id: str = "copy-btn") -> str:
+        """Create HTML copy button with standard icon that doesn't trigger reruns"""
+        import base64
+        text_b64 = base64.b64encode(text.encode()).decode()
         
-        with col2:
-            if st.button(label, key=button_key, help="Copy response to clipboard"):
-                # Use st.write with HTML to trigger clipboard copy via JavaScript
-                # Encode text to base64 to handle special characters
-                text_b64 = base64.b64encode(text.encode()).decode()
-                
-                st.components.v1.html(
-                    f"""
-                    <script>
-                    const text = atob("{text_b64}");
-                    navigator.clipboard.writeText(text).then(function() {{
-                        // Success - could show a toast notification here
-                    }}, function(err) {{
-                        console.error('Could not copy text: ', err);
-                    }});
-                    </script>
-                    <style>
-                    iframe {{
-                        height: 0px !important;
-                    }}
-                    </style>
-                    """,
-                    height=0
-                )
-                st.success("✅ Copied to clipboard!", icon="📋")
+        return f"""
+        <div style="margin-top: 10px; margin-bottom: 10px;">
+            <button onclick="copyToClipboard{button_id}()" style="
+                background-color: #f0f2f6;
+                border: 1px solid #d1d5db;
+                border-radius: 4px;
+                padding: 8px 16px;
+                cursor: pointer;
+                font-size: 14px;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            " onmouseover="this.style.backgroundColor='#e5e7eb'" onmouseout="this.style.backgroundColor='#f0f2f6'">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                Copy Response
+            </button>
+            <span id="copy-feedback-{button_id}" style="margin-left: 10px; color: #059669; font-size: 14px; display: none;">✓ Copied!</span>
+        </div>
+        
+        <script>
+        function copyToClipboard{button_id}() {{
+            const text = atob("{text_b64}");
+            
+            // Try modern clipboard API
+            if (navigator.clipboard && navigator.clipboard.writeText) {{
+                navigator.clipboard.writeText(text).then(function() {{
+                    showFeedback{button_id}();
+                }}, function(err) {{
+                    // Fallback for older browsers
+                    fallbackCopy{button_id}(text);
+                }});
+            }} else {{
+                fallbackCopy{button_id}(text);
+            }}
+        }}
+        
+        function fallbackCopy{button_id}(text) {{
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-999999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {{
+                document.execCommand('copy');
+                showFeedback{button_id}();
+            }} catch (err) {{
+                console.error('Fallback copy failed:', err);
+            }}
+            
+            document.body.removeChild(textArea);
+        }}
+        
+        function showFeedback{button_id}() {{
+            const feedback = document.getElementById('copy-feedback-{button_id}');
+            feedback.style.display = 'inline';
+            setTimeout(function() {{
+                feedback.style.display = 'none';
+            }}, 2000);
+        }}
+        </script>
+        """
     
     def render(self):
         """Render the client view"""
@@ -276,8 +318,12 @@ class ClientView:
                 st.warning("Please enter a question")
                 return
             
-            # No need to store - widget with key="main_query" automatically updates session state!
-            self._process_and_display_query(query, k_results, show_debug)
+            # Process query (stores to session state)
+            self._process_query(query, k_results, show_debug)
+        
+        # Display results OUTSIDE button callback (persists across reruns)
+        if st.session_state.get('last_query_results'):
+            self._display_query_results()
         
         # Render post-query buttons OUTSIDE the button callback
         # This ensures they render on every page load if show_post_query_buttons is True
@@ -285,8 +331,8 @@ class ClientView:
             st.markdown("---")
             self._render_post_query_buttons()
     
-    def _process_and_display_query(self, query: str, k_results: int, show_debug: bool):
-        """Process query and display results"""
+    def _process_query(self, query: str, k_results: int, show_debug: bool):
+        """Process query and store results in session state"""
         
         with st.spinner("🔄 Processing your query..."):
             try:
@@ -296,61 +342,23 @@ class ClientView:
                     k_results=k_results
                 )
                 
-                # Display answer
-                st.markdown("### 📊 Analysis Results")
-                
-                # Create columns for response and copy button
-                response_col, button_col = st.columns([0.95, 0.05])
-                
-                with response_col:
-                    st.markdown(response['answer'])
-                
-                with button_col:
-                    if st.button("📋", key="copy_main_response", help="Copy response to clipboard"):
-                        # Use Streamlit's clipboard via pyperclip or JavaScript
-                        st.components.v1.html(
-                            f"""
-                            <script>
-                            const text = {repr(response['answer'])};
-                            navigator.clipboard.writeText(text).then(function() {{
-                                console.log('Copied to clipboard');
-                            }}, function(err) {{
-                                console.error('Could not copy text: ', err);
-                            }});
-                            </script>
-                            """,
-                            height=0
-                        )
-                        self._add_log("✅ Response copied to clipboard", "success")
-                        st.success("✅ Copied!", icon="📋")
-                
-                # Check if there's result CSV data (occupation or industry summary)
-                computational_results = retrieval_results.get('computational_results', {})
-                result_csv_df = None
-                
-                if 'occupation_employment' in computational_results:
-                    result_csv_df = computational_results['occupation_employment']
-                elif 'industry_employment' in computational_results:
-                    result_csv_df = computational_results['industry_employment']
-                
-                # Display inline result CSV download if available
-                if result_csv_df is not None and isinstance(result_csv_df, pd.DataFrame) and not result_csv_df.empty:
-                    # Track query number for sequential naming
-                    if 'query_counter' not in st.session_state:
-                        st.session_state.query_counter = 0
-                    st.session_state.query_counter += 1
-                    
-                    self._display_inline_result_csv(result_csv_df, st.session_state.query_counter)
-                
-                # Store results for follow-up functionality
+                # Store results in session state for display
                 st.session_state.last_query = query
                 st.session_state.last_query_results = response
                 st.session_state.show_post_query_buttons = True
+                st.session_state.show_debug = show_debug
+                
+                # Increment query counter for CSV naming
+                retrieval_results = response.get('retrieval_results', {})
+                computational_results = retrieval_results.get('computational_results', {})
+                
+                if 'occupation_employment' in computational_results or 'industry_employment' in computational_results:
+                    if 'query_counter' not in st.session_state:
+                        st.session_state.query_counter = 0
+                    st.session_state.query_counter += 1
                 
                 # Store filtered dataset if available
                 logger.info("Attempting to store filtered dataset for follow-up queries", show_ui=False)
-                
-                retrieval_results = response.get('retrieval_results', {})
                 logger.info(f"Retrieval results keys: {list(retrieval_results.keys())}", show_ui=False)
                 
                 if retrieval_results.get('filtered_dataframe') is not None:
@@ -411,30 +419,6 @@ class ClientView:
                     logger.warning("❌ No filtered dataframe or semantic results available - follow-up queries won't work!", show_ui=True)
                     st.session_state.filtered_dataset = None
                 
-                # Display CSV if available
-                if response.get('csv_data') is not None:
-                    st.markdown("---")
-                    st.subheader("📥 Exportable Data")
-                    
-                    csv_df = response['csv_data']
-                    st.dataframe(csv_df)
-                    
-                    # Download button
-                    csv_buffer = StringIO()
-                    csv_df.to_csv(csv_buffer, index=False)
-                    csv_str = csv_buffer.getvalue()
-                    
-                    st.download_button(
-                        label="⬇️ Download CSV",
-                        data=csv_str,
-                        file_name="labor_market_analysis.csv",
-                        mime="text/csv"
-                    )
-                
-                # Show debug info if requested
-                if show_debug:
-                    self._render_debug_info(response)
-                
                 # Store in history
                 if 'query_history' not in st.session_state:
                     st.session_state.query_history = []
@@ -448,6 +432,65 @@ class ClientView:
             except Exception as e:
                 logger.error(f"Query processing failed: {str(e)}", show_ui=True)
                 st.error(f"Failed to process query: {str(e)}")
+                # Clear results on error
+                st.session_state.last_query_results = None
+    
+    def _display_query_results(self):
+        """Display query results from session state (persists across reruns)"""
+        response = st.session_state.get('last_query_results')
+        show_debug = st.session_state.get('show_debug', False)
+        
+        if not response:
+            return
+        
+        # Display answer with custom copy button
+        st.markdown("### 📊 Analysis Results")
+        
+        # Display the response
+        st.markdown(response['answer'])
+        
+        # Add copy button (no rerun)
+        copy_button_html = self._create_copy_button(response['answer'], "main_response")
+        st.components.v1.html(copy_button_html, height=60)
+        
+        # Check if there's result CSV data (occupation or industry summary)
+        retrieval_results = response.get('retrieval_results', {})
+        computational_results = retrieval_results.get('computational_results', {})
+        result_csv_df = None
+        
+        if 'occupation_employment' in computational_results:
+            result_csv_df = computational_results['occupation_employment']
+        elif 'industry_employment' in computational_results:
+            result_csv_df = computational_results['industry_employment']
+        
+        # Display inline result CSV download if available
+        if result_csv_df is not None and isinstance(result_csv_df, pd.DataFrame) and not result_csv_df.empty:
+            query_counter = st.session_state.get('query_counter', 1)
+            self._display_inline_result_csv(result_csv_df, query_counter)
+        
+        # Display CSV if available
+        if response.get('csv_data') is not None:
+            st.markdown("---")
+            st.subheader("📥 Exportable Data")
+            
+            csv_df = response['csv_data']
+            st.dataframe(csv_df)
+            
+            # Download button
+            csv_buffer = StringIO()
+            csv_df.to_csv(csv_buffer, index=False)
+            csv_str = csv_buffer.getvalue()
+            
+            st.download_button(
+                label="⬇️ Download CSV",
+                data=csv_str,
+                file_name="labor_market_analysis.csv",
+                mime="text/csv"
+            )
+        
+        # Show debug info if requested
+        if show_debug:
+            self._render_debug_info(response)
     
     def _render_debug_info(self, response: dict):
         """Render debug information"""
@@ -811,30 +854,11 @@ class ClientView:
                     result = self._simple_aggregation_on_filtered_data(filtered_df, query)
                     if result:
                         st.markdown("### 📊 Follow-up Analysis Results")
+                        st.markdown(result['answer'])
                         
-                        # Create columns for response and copy button
-                        response_col, button_col = st.columns([0.95, 0.05])
-                        
-                        with response_col:
-                            st.markdown(result['answer'])
-                        
-                        with button_col:
-                            if st.button("📋", key="copy_followup_1", help="Copy response to clipboard"):
-                                st.components.v1.html(
-                                    f"""
-                                    <script>
-                                    const text = {repr(result['answer'])};
-                                    navigator.clipboard.writeText(text).then(function() {{
-                                        console.log('Copied to clipboard');
-                                    }}, function(err) {{
-                                        console.error('Could not copy text: ', err);
-                                    }});
-                                    </script>
-                                    """,
-                                    height=0
-                                )
-                                self._add_log("✅ Follow-up response copied to clipboard", "success")
-                                st.success("✅ Copied!", icon="📋")
+                        # Add copy button (no rerun)
+                        copy_button_html = self._create_copy_button(result['answer'], "followup1")
+                        st.components.v1.html(copy_button_html, height=60)
                         
                         if result.get('csv_data') is not None:
                             self._display_csv_download(result['csv_data'], "followup")
@@ -882,30 +906,11 @@ class ClientView:
                 
                 # Display results
                 st.markdown("### 📊 Follow-up Analysis Results")
+                st.markdown(response['answer'])
                 
-                # Create columns for response and copy button
-                response_col, button_col = st.columns([0.95, 0.05])
-                
-                with response_col:
-                    st.markdown(response['answer'])
-                
-                with button_col:
-                    if st.button("📋", key="copy_followup_2", help="Copy response to clipboard"):
-                        st.components.v1.html(
-                            f"""
-                            <script>
-                            const text = {repr(response['answer'])};
-                            navigator.clipboard.writeText(text).then(function() {{
-                                console.log('Copied to clipboard');
-                            }}, function(err) {{
-                                console.error('Could not copy text: ', err);
-                            }});
-                            </script>
-                            """,
-                            height=0
-                        )
-                        self._add_log("✅ Follow-up response copied to clipboard", "success")
-                        st.success("✅ Copied!", icon="📋")
+                # Add copy button (no rerun)
+                copy_button_html = self._create_copy_button(response['answer'], "followup2")
+                st.components.v1.html(copy_button_html, height=60)
                 
                 # Show query details in expander
                 with st.expander("🔍 Query Details"):
