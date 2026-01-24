@@ -341,13 +341,18 @@ class HybridRetriever:
                 if results['computational_results']:
                     logger.info("Merging computational results from multiple sources", show_ui=False)
                     
-                    # Preserve validated values from response functions
-                    for key in ['total_employment', 'total_occupations', 'total_industries',
-                                'total_employment_verified', 'occupation_count_verified',
-                                'industry_count_verified', 'arithmetic_validator', 'arithmetic_metadata']:
-                        if key in results['computational_results'] and key not in computational_results:
-                            # Keep the existing validated value
-                            logger.debug(f"Preserving {key} from response function", show_ui=False)
+                    # CRITICAL: ALWAYS preserve validated values from summary functions
+                    # Even if _computational_retrieval also computed these values, the summary function values are CORRECT
+                    # because they use proper de-duplication logic specific to occupation/industry queries
+                    validated_keys = ['total_employment', 'total_occupations', 'total_industries',
+                                    'total_employment_verified', 'occupation_count_verified',
+                                    'industry_count_verified', 'arithmetic_validator', 'arithmetic_metadata']
+                    
+                    for key in validated_keys:
+                        if key in results['computational_results']:
+                            # Preserve the validated value from summary function
+                            # This takes precedence over values from _computational_retrieval
+                            logger.debug(f"Preserving {key} from response function (overriding _computational_retrieval)", show_ui=False)
                             computational_results[key] = results['computational_results'][key]
                     
                     # Also preserve occupation_employment and industry_employment DataFrames

@@ -89,6 +89,22 @@ For TASK queries (What tasks/specific tasks):
 - Include time per task and industry count
 - Ensure diversity across occupations (show multiple occupations)
 
+For INDUSTRY queries (total/employment by industry):
+- Format: Table or list showing EACH INDUSTRY with its employment
+- CRITICAL: Extract employment values from the semantic results text
+  * Each result has format: "Industry: X\nTotal Employment: Y.YYk workers\n..."
+  * YOU MUST extract the Y.YY value and include it in your table!
+- Include columns: Industry | Total Employment (k) | Number of Occupations
+- DO NOT use task-related column headers (Task Description, Avg Time, etc.)
+- Example table:
+  | Industry | Total Employment (k) | Occupations |
+  | Professional Services | 1,250.30 | 25 |
+  | Healthcare | 980.15 | 21 |
+  | Finance | 650.80 | 11 |
+- If you see data with "Industry: X" format in semantic results, extract the "Total Employment: X.XXk" value
+- The "industry_employment" DataFrame in computational results has the correct data - use it if available
+- NEVER leave employment column empty!
+
 For BREAKDOWN BY INDUSTRY AND OCCUPATION queries:
 - This requires showing ALL occupation-industry combinations
 - DO NOT show only one occupation (e.g., only Architects)
