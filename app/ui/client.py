@@ -24,6 +24,11 @@ class ClientView:
         # Initialize log collection in session state
         if 'ui_logs' not in st.session_state:
             st.session_state.ui_logs = []
+        
+        # Initialize session ID for error reporting
+        if 'session_id' not in st.session_state:
+            import uuid
+            st.session_state.session_id = str(uuid.uuid4())[:8]
     
     @staticmethod
     def _add_log(message: str, log_type: str = "info"):
@@ -446,8 +451,38 @@ class ClientView:
         # Display answer with custom copy button
         st.markdown("### 📊 Analysis Results")
         
+        # ARITHMETIC VALIDATION: Display verification badge and discrepancies
+        from app.ui.arithmetic_error_ui import ArithmeticErrorReporter
+        
+        retrieval_results = response.get('retrieval_results', {})
+        discrepancies = retrieval_results.get('arithmetic_discrepancies', [])
+        
+        # Display verification badge
+        ArithmeticErrorReporter.display_verification_badge(
+            has_discrepancies=len(discrepancies) > 0
+        )
+        
         # Display the response
         st.markdown(response['answer'])
+        
+        # Display discrepancies if any
+        if discrepancies:
+            query = st.session_state.get('last_query', 'Unknown query')
+            session_id = st.session_state.get('session_id', 'default')
+            
+            ArithmeticErrorReporter.display_discrepancy_alert(
+                discrepancies=discrepancies,
+                query=query,
+                session_id=session_id
+            )
+        
+        # Optionally display computation details (collapsed by default)
+        computational_results = retrieval_results.get('computational_results', {})
+        if computational_results:
+            ArithmeticErrorReporter.display_computation_details(
+                computational_results=computational_results,
+                show_details=False
+            )
         
         # Add copy button (no rerun)
         copy_button_html = self._create_copy_button(response['answer'], "main_response")

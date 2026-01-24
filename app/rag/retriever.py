@@ -449,6 +449,21 @@ class HybridRetriever:
             time_stats = self._calculate_time_statistics(matching_df)
             results['computational_results']['time_analysis'] = time_stats
         
+        # ARITHMETIC VALIDATION: Pre-compute task-level arithmetic
+        from app.utils.arithmetic_computation import ArithmeticComputationLayer
+        
+        computation_layer = ArithmeticComputationLayer()
+        computational_results = computation_layer.compute_task_details_arithmetic(
+            task_df=matching_df
+        )
+        
+        # Merge computational results (validated arithmetic)
+        results['computational_results'].update(computational_results)
+        
+        # Store validator for later validation
+        results['arithmetic_validator'] = computation_layer.get_validator()
+        
+        logger.info(f"✅ ARITHMETIC VALIDATION: Computed and verified {len(computation_layer.get_validator().computed_values)} values", show_ui=False)
         logger.info(f"Created {len(task_details)} task detail results from {len(occ_counts)} occupations", show_ui=False)
         
         return results
@@ -713,11 +728,20 @@ Original query: "{original_query}"
             'Hourly wage': 'Avg Hourly Wage'
         })
         
-        # CRITICAL FIX: Calculate and store GRAND TOTAL across all industries
-        # This ensures the LLM has the correct total, not just individual industry totals
-        grand_total_employment = float(ind_summary['Employment'].sum())
-        results['computational_results']['total_employment'] = grand_total_employment
-        results['computational_results']['total_industries'] = len(ind_summary)
+        # ARITHMETIC VALIDATION: Pre-compute ALL arithmetic with ground truth
+        from app.utils.arithmetic_computation import ArithmeticComputationLayer
+        
+        computation_layer = ArithmeticComputationLayer()
+        computational_results = computation_layer.compute_industry_summary_arithmetic(
+            ind_summary=ind_summary,
+            matching_df=matching_df
+        )
+        
+        # Merge computational results (validated arithmetic)
+        results['computational_results'].update(computational_results)
+        
+        # Store validator for later validation
+        results['arithmetic_validator'] = computation_layer.get_validator()
         
         # Calculate industry proportions
         industry_prop_results = self._compute_industry_proportions(
@@ -727,7 +751,8 @@ Original query: "{original_query}"
         if industry_prop_results:
             results['computational_results']['industry_proportions'] = industry_prop_results
         
-        logger.info(f"Created {len(results['semantic_results'])} industry-level results with grand total: {grand_total_employment:.2f}k workers", show_ui=False)
+        logger.info(f"✅ ARITHMETIC VALIDATION: Computed and verified {len(computation_layer.get_validator().computed_values)} values", show_ui=False)
+        logger.info(f"Created {len(results['semantic_results'])} industry-level results with verified total: {computational_results['total_employment']:.2f}k workers", show_ui=False)
         
         return results
     
@@ -802,13 +827,23 @@ Original query: "{original_query}"
             'Hourly wage': 'Avg Hourly Wage'
         })
         
-        # CRITICAL FIX: Calculate and store GRAND TOTAL across all occupations
-        # This ensures the LLM has the correct total, not just individual occupation totals
-        grand_total_employment = float(occ_summary['Employment'].sum())
-        results['computational_results']['total_employment'] = grand_total_employment
-        results['computational_results']['total_occupations'] = len(occ_summary)
+        # ARITHMETIC VALIDATION: Pre-compute ALL arithmetic with ground truth
+        from app.utils.arithmetic_computation import ArithmeticComputationLayer
         
-        logger.info(f"Created {len(results['semantic_results'])} occupation-level results with grand total: {grand_total_employment:.2f}k workers", show_ui=False)
+        computation_layer = ArithmeticComputationLayer()
+        computational_results = computation_layer.compute_occupation_summary_arithmetic(
+            occ_summary=occ_summary,
+            matching_df=matching_df
+        )
+        
+        # Merge computational results (validated arithmetic)
+        results['computational_results'].update(computational_results)
+        
+        # Store validator for later validation
+        results['arithmetic_validator'] = computation_layer.get_validator()
+        
+        logger.info(f"✅ ARITHMETIC VALIDATION: Computed and verified {len(computation_layer.get_validator().computed_values)} values", show_ui=False)
+        logger.info(f"Created {len(results['semantic_results'])} occupation-level results with verified total: {computational_results['total_employment']:.2f}k workers", show_ui=False)
         
         return results
     
@@ -1666,6 +1701,22 @@ Original query: "{original_query}"
                 matching_df,
                 task_details
             )
+        
+        # ARITHMETIC VALIDATION: Pre-compute task-level arithmetic
+        from app.utils.arithmetic_computation import ArithmeticComputationLayer
+        
+        computation_layer = ArithmeticComputationLayer()
+        computational_results = computation_layer.compute_task_details_arithmetic(
+            task_df=matching_df
+        )
+        
+        # Merge computational results (validated arithmetic)
+        results['computational_results'].update(computational_results)
+        
+        # Store validator for later validation
+        results['arithmetic_validator'] = computation_layer.get_validator()
+        
+        logger.info(f"✅ ARITHMETIC VALIDATION: Computed and verified {len(computation_layer.get_validator().computed_values)} values", show_ui=False)
         
         return results
     

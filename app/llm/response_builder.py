@@ -157,9 +157,44 @@ class ResponseBuilder:
                 logger.warning("OpenAI returned None content", show_ui=False)
                 return "I apologize, but I wasn't able to generate a response. Please try again."
             
-            # CRITICAL FIX: Validate and correct occupation/industry summary totals
-            # The LLM sometimes ignores instructions and calculates wrong totals
-            # This post-processing ensures the total is always correct
+            # ARITHMETIC VALIDATION: Validate LLM output against ground truth
+            if 'arithmetic_validator' in retrieval_results:
+                validator = retrieval_results['arithmetic_validator']
+                
+                # Get expected values from computational results
+                expected_values = {}
+                for key, value in retrieval_results['computational_results'].items():
+                    if key.endswith('_verified'):
+                        expected_values[key] = value
+                
+                # Validate LLM output
+                discrepancies = validator.validate_llm_output(
+                    llm_text=answer,
+                    expected_values=expected_values
+                )
+                
+                # Store discrepancies for UI display
+                retrieval_results['arithmetic_discrepancies'] = discrepancies
+                
+                if discrepancies:
+                    logger.warning(
+                        f"⚠️ ARITHMETIC DISCREPANCIES DETECTED: {len(discrepancies)} error(s) found",
+                        show_ui=True
+                    )
+                    
+                    # Log each discrepancy
+                    for disc in discrepancies:
+                        logger.warning(
+                            f"  - {disc.operation.upper()} ({disc.severity}): "
+                            f"Computed={disc.computed_value:.2f}, LLM={disc.llm_value:.2f}, "
+                            f"Diff={disc.difference_pct:.1f}%",
+                            show_ui=False
+                        )
+                else:
+                    logger.info("✅ ARITHMETIC VALIDATION: All values verified correct", show_ui=False)
+            
+            # LEGACY: Also run old validation for backwards compatibility
+            # This will be deprecated once full arithmetic validation is proven
             answer = self._validate_and_correct_totals(answer, retrieval_results)
             
             logger.debug(f"Generated response: {len(answer)} characters")
