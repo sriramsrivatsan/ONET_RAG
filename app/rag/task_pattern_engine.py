@@ -169,27 +169,94 @@ class TaskPatternEngine:
         """
         query_lower = query.lower()
         
+        # Negation patterns to detect when keywords are mentioned in negative context
+        negation_patterns = [
+            r"don'?t\s+include",
+            r"not\s+include",
+            r"exclude",
+            r"avoid",
+            r"by\s+contrast",
+            r"except\s+for",
+            r"other\s+than",
+            r"rather\s+than",
+            r"instead\s+of",
+            r"don'?t\s+(?:want|need|consider)",
+            r"shouldn'?t",
+            r"won'?t",
+            r"not\s+(?:want|need|looking|interested)"
+        ]
+        
         # Check each category's keywords
         best_match = None
         best_score = 0.0
+        scores_detail = {}  # For debugging
         
         for category_name, category in self.categories.items():
             score = 0.0
+            details = []
             
             # Check if category name or display name in query
-            if category_name.replace('_', ' ') in query_lower:
-                score += 2.0  # Strong signal
-            if category.display_name.lower() in query_lower:
-                score += 2.0  # Strong signal
+            category_phrase = category_name.replace('_', ' ')
+            display_phrase = category.display_name.lower()
+            
+            # Check for negation context around category mentions
+            import re
+            is_negated = False
+            
+            # Look for category phrase in query
+            if category_phrase in query_lower or display_phrase in query_lower:
+                # Find position of category phrase
+                phrase_to_check = category_phrase if category_phrase in query_lower else display_phrase
+                phrase_pos = query_lower.find(phrase_to_check)
+                
+                # Check 200 characters before the phrase for negation (increased from 50)
+                context_start = max(0, phrase_pos - 200)
+                context = query_lower[context_start:phrase_pos + len(phrase_to_check)]
+                
+                # Check if any negation pattern appears in context
+                for neg_pattern in negation_patterns:
+                    if re.search(neg_pattern, context):
+                        is_negated = True
+                        details.append(f"NEGATED phrase match (context: ...{context[-30:]})")
+                        break
+                
+                if not is_negated:
+                    score += 2.0  # Strong signal only if NOT negated
+                    details.append(f"+2.0 phrase match '{phrase_to_check}'")
+                else:
+                    score -= 2.0  # Penalty for negated mentions
+                    details.append(f"-2.0 negated phrase '{phrase_to_check}'")
             
             # Check for action verbs (any tier)
             all_verbs = (
                 category.action_verbs.get('primary', []) +
                 category.action_verbs.get('secondary', [])
             )
-            verb_matches = sum(1 for verb in all_verbs if verb.lower() in query_lower)
-            if verb_matches > 0:
-                score += 1.0 + (0.3 * min(verb_matches - 1, 3))  # Bonus for multiple matches
+            
+            # Simple stemming: check if query contains verb or common inflections
+            verb_matches_count = 0
+            matched_verbs = []
+            for verb in all_verbs:
+                verb_lower = verb.lower()
+                # Check exact match or common inflections
+                # Handle -e ending: "create" → "creating" (drop e), not "createing"
+                stem = verb_lower[:-1] if verb_lower.endswith('e') else verb_lower
+                
+                verb_patterns = [
+                    verb_lower,  # exact: "create"
+                    verb_lower + 's',  # "creates"
+                    stem + 'ing',  # "creating" (handles both create→creating and program→programing)
+                    stem + 'ed',  # "created"
+                ]
+                
+                if any(pattern in query_lower for pattern in verb_patterns):
+                    verb_matches_count += 1
+                    matched_verbs.append(verb)
+                    
+            if verb_matches_count > 0:
+                verb_score = 1.0 + (0.3 * min(verb_matches_count - 1, 3))
+                score += verb_score
+                details.append(f"+{verb_score:.1f} verbs: {matched_verbs[:3]}")
             
             # Check for object keywords (any tier)
             all_keywords = (
@@ -198,29 +265,75 @@ class TaskPatternEngine:
             )
             keyword_matches = sum(1 for kw in all_keywords if kw.lower() in query_lower)
             if keyword_matches > 0:
-                score += 0.8 + (0.3 * min(keyword_matches - 1, 3))  # Bonus for multiple matches
+                keyword_score = 0.8 + (0.3 * min(keyword_matches - 1, 3))
+                score += keyword_score
+                matched_kws = [k for k in all_keywords if k.lower() in query_lower]
+                details.append(f"+{keyword_score:.1f} keywords: {matched_kws[:3]}")
             
-            # Penalty for excluded terms
+            # Penalty for excluded terms (but not if they appear in negated context)
             excluded_verbs = category.action_verbs.get('exclude', [])
             excluded_keywords = category.object_keywords.get('exclude', [])
-            has_excluded = any(v.lower() in query_lower for v in excluded_verbs) or \
-                          any(k.lower() in query_lower for k in excluded_keywords)
-            if has_excluded:
+            
+            # Check if excluded terms appear, but ignore if in negated context
+            excluded_found = []
+            for term in excluded_verbs + excluded_keywords:
+                term_lower = term.lower()
+                
+                # Use word boundary regex to match whole words only (avoid "read" in "spreadsheets")
+                import re
+                word_pattern = r'\b' + re.escape(term_lower) + r'\b'
+                matches = list(re.finditer(word_pattern, query_lower))
+                
+                if matches:
+                    # Check each occurrence - term is only excluded if at least one occurrence is NOT negated
+                    has_non_negated_occurrence = False
+                    for match in matches:
+                        term_pos = match.start()
+                        context_start = max(0, term_pos - 200)
+                        context = query_lower[context_start:term_pos]
+                        
+                        # Check for negation
+                        is_negated_term = False
+                        for neg_pattern in negation_patterns:
+                            if re.search(neg_pattern, context):
+                                is_negated_term = True
+                                break
+                        
+                        if not is_negated_term:
+                            has_non_negated_occurrence = True
+                            break  # Found one non-negated occurrence, that's enough
+                    
+                    # Only add to excluded if we found a non-negated occurrence
+                    if has_non_negated_occurrence:
+                        excluded_found.append(term)
+            
+            if excluded_found:
+                old_score = score
                 score *= 0.3  # Heavy penalty
+                details.append(f"×0.3 excluded terms: {excluded_found[:2]} (was {old_score:.1f})")
+            
+            # Store score details
+            scores_detail[category_name] = {'score': score, 'details': details}
             
             # Require minimum combination for match
-            # Either: name match OR (verb + keyword)
             min_score = 0.5
             if score >= min_score:
                 if score > best_score:
                     best_score = score
                     best_match = category_name
         
-        # Return match if confidence above threshold (lowered from 0.3 to 0.5 but more generous scoring)
+        # Log all category scores for debugging
+        logger.info(f"✓ v4.0.0: Category scoring complete", show_ui=False)
+        for cat_name, info in sorted(scores_detail.items(), key=lambda x: x[1]['score'], reverse=True):
+            if info['score'] > 0.1 or cat_name in [best_match, 'document_creation', 'customer_service']:
+                logger.info(f"  {cat_name}: {info['score']:.2f} - {', '.join(info['details'])}", show_ui=False)
+        
+        # Return match if confidence above threshold
         if best_score >= 0.5:
-            logger.debug(f"Detected category {best_match} with score {best_score:.2f}", show_ui=False)
+            logger.info(f"✓ v4.0.0: Detected category '{best_match}' with score {best_score:.2f}", show_ui=False)
             return best_match
         
+        logger.debug(f"No category detected (best score: {best_score:.2f})", show_ui=False)
         return None
     
     def match_task(

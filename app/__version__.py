@@ -2,14 +2,16 @@
 Labor RAG System Version Information
 =====================================
 
-Version 4.0.1.1 - Query Scope Hotfix
+Version 4.0.2 - Pattern Matching Bug Fixes
 Release Date: January 24, 2025
 
-HOTFIX CHANGES:
-- Fixed query variable scope error in hybrid_router.py
-- Changed line 160: detect_task_category(query) -> detect_task_category(query_lower)
+CRITICAL BUG FIXES:
+- Fixed negation detection (customer service false positive)
+- Added verb inflection matching (creating → create)
+- Fixed word boundary matching (read in spreadsheets)
 
 PREVIOUS FIXES:
+- v4.0.1.1: Fixed query variable scope error in hybrid_router.py
 - v4.0.1: Fixed orphaned code block in retriever.py (103 lines removed)
 - v4.0.0: Generic task pattern framework
 
@@ -20,23 +22,13 @@ MAJOR CHANGES (v4.0.0):
 - Infinite extensibility via YAML config
 - Zero code changes needed for new task categories
 
-PREVIOUS VERSIONS:
-- v3.3.37: Duplicate function removal + task validation
-- v3.3.36: Task query validation fix
-- v3.3.35: Validator storage fix
-- v3.3.34: Industry query merge fix
-- v3.3.33: Truncation fix
-- v3.3.32: CSV export fix
-- v3.3.31: Double path fix
-- v3.3.30: Arithmetic validation system
-
 BACKWARD COMPATIBILITY:
 - All existing queries continue to work
 - Existing document creation queries automatically use new engine
 - API unchanged
 """
 
-__version__ = "4.0.1.1"
+__version__ = "4.0.2"
 __release_date__ = "2025-01-24"
 __codename__ = "Genesis"  # First version with zero hardcoding
 
