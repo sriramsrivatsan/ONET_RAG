@@ -139,7 +139,35 @@ class ResponseBuilder:
                 routing_info=routing_info
             )
             
-            # Call OpenAI API with new client
+            # DYNAMIC TOKEN ALLOCATION: Determine max_tokens based on query type and result size
+            # Task-level queries need more tokens for comprehensive tables
+            max_tokens = config.LLM_MAX_TOKENS  # Default: 4000
+            
+            query_lower = query.lower()
+            is_task_query = any(phrase in query_lower for phrase in [
+                'specific tasks', 'what tasks', 'which tasks', 'task descriptions',
+                'tasks that', 'tasks involve', 'list tasks', 'show tasks', 'describe tasks'
+            ])
+            
+            # Check result size
+            semantic_results_count = len(retrieval_results.get('semantic_results', []))
+            
+            if is_task_query:
+                # Task queries with many results need higher token limit
+                if semantic_results_count > 50:
+                    max_tokens = config.LLM_MAX_TOKENS_TASK_QUERY  # 8000 for large task tables
+                    logger.info(f"📊 Task query with {semantic_results_count} results: Using max_tokens={max_tokens}", show_ui=False)
+                elif semantic_results_count > 20:
+                    max_tokens = 6000  # Medium task tables
+                    logger.info(f"📊 Task query with {semantic_results_count} results: Using max_tokens={max_tokens}", show_ui=False)
+                else:
+                    max_tokens = config.LLM_MAX_TOKENS  # Small task queries: 4000
+            elif semantic_results_count > 30:
+                # Occupation queries with many results
+                max_tokens = config.LLM_MAX_TOKENS_OCCUPATION_QUERY  # 4000
+                logger.info(f"📊 Occupation query with {semantic_results_count} results: Using max_tokens={max_tokens}", show_ui=False)
+            
+            # Call OpenAI API with dynamic token allocation
             response = self.client.chat.completions.create(
                 model=config.LLM_MODEL,
                 messages=[
@@ -147,7 +175,7 @@ class ResponseBuilder:
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=config.LLM_TEMPERATURE,
-                max_tokens=config.LLM_MAX_TOKENS
+                max_tokens=max_tokens  # Dynamic based on query type and result size
             )
             
             answer = response.choices[0].message.content

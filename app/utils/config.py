@@ -22,7 +22,9 @@ class Config:
     # LLM Configuration
     LLM_MODEL: str = os.getenv('LLM_MODEL', 'gpt-4o-mini')
     LLM_TEMPERATURE: float = 0.1
-    LLM_MAX_TOKENS: int = 2000
+    LLM_MAX_TOKENS: int = 4000  # Increased from 2000 to support comprehensive tables
+    LLM_MAX_TOKENS_TASK_QUERY: int = 8000  # Higher limit for task-level queries with many rows
+    LLM_MAX_TOKENS_OCCUPATION_QUERY: int = 4000  # Standard limit for occupation queries
     
     # Processing Configuration
     MAX_MEMORY_PERCENT: int = 80
