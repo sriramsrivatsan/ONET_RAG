@@ -1,14 +1,47 @@
-streamlit
-pandas
-numpy
-openai
-chromadb
-sentence-transformers
-scikit-learn
-nltk
-psutil
-plotly
-fuzzywuzzy
-python-Levenshtein
-PyYAML
+# Labor RAG System - Requirements
+# Updated: January 2025
+# Pinned versions for faster, reliable deployment
 
+# Core Framework
+streamlit==1.29.0
+
+# Data Processing
+pandas==2.1.4
+numpy==1.26.2
+
+# LLM & Embeddings
+openai==1.6.1
+sentence-transformers==2.2.2
+
+# Vector Database
+chromadb==0.4.18
+
+# ML & NLP
+scikit-learn==1.3.2
+nltk==3.8.1
+
+# System
+psutil==5.9.6
+
+# Visualization
+plotly==5.18.0
+
+# Text Matching
+fuzzywuzzy==0.18.0
+python-Levenshtein==0.23.0
+
+# Configuration
+PyYAML==6.0.1
+
+# Additional Dependencies (automatically installed by above)
+# These are listed for reference but don't need to be explicitly installed:
+# - requests (via openai, chromadb)
+# - certifi (via requests)
+# - charset-normalizer (via requests)
+# - idna (via requests)
+# - urllib3 (via requests)
+# - tqdm (via sentence-transformers)
+# - torch (via sentence-transformers)
+# - transformers (via sentence-transformers)
+# - huggingface-hub (via sentence-transformers)
+# - tokenizers (via transformers)

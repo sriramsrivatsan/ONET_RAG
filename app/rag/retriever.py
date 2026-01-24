@@ -224,116 +224,14 @@ class HybridRetriever:
                     'score': 1.0 - (min(i, 99) * 0.01),  # Cap score decay at 100
                     'metadata': {
                         'industry_title': row['Industry title'],
-                            'onet_job_title': row['ONET job title'],
-                            'employment': row['Employment'],
-                            'task_sample': row['Detailed job tasks']
-                        }
-                    })
-                
-                logger.info(f"Provided all {len(results['semantic_results'])} industry-occupation combinations", show_ui=False)
-                
-            else:
-                # For task queries, check if user wants INDUSTRY or OCCUPATION grouping
-                query_wants_industry = (
-                    'by industry' in query_lower or 
-                    'per industry' in query_lower or
-                    'industries' in query_lower or
-                    'which industries' in query_lower
-                )
-                
-                if query_wants_industry:
-                    # INDUSTRY-LEVEL aggregation
-                    logger.info(f"Task query - aggregating {len(matching_df)} rows BY INDUSTRY", show_ui=False)
-                    
-                    ind_summary = matching_df.groupby('Industry title').agg({
-                        'Employment': 'sum',  # Total employment in industry
-                        'ONET job title': 'nunique',  # Number of different occupations
-                        'Detailed job tasks': lambda x: len(x)  # Number of tasks
-                    }).reset_index()
-                    
-                    # Sort by employment descending
-                    ind_summary = ind_summary.sort_values('Employment', ascending=False)
-                    
-                    logger.info(f"Found {len(ind_summary)} unique industries with total employment", show_ui=False)
-                    
-                    # Store filtered dataframe for CSV export
-                    results['filtered_dataframe'] = matching_df.copy().reset_index(drop=True)
-                    
-                    # Convert to semantic results format - one result per INDUSTRY
-                    for i, row in ind_summary.iterrows():
-                        results['semantic_results'].append({
-                            'text': f"Industry: {row['Industry title']}\nTotal Employment: {row['Employment']:.2f}k workers\nNumber of Occupations: {row['ONET job title']}\nNumber of Tasks: {row['Detailed job tasks']}",
-                            'score': 1.0 - (i * 0.01),
-                            'metadata': {
-                                'industry_title': row['Industry title'],
-                                'employment': row['Employment'],
-                                'occupation_count': row['ONET job title'],
-                                'task_count': row['Detailed job tasks']
-                            }
-                        })
-                    
-                    # Create CSV data with industry-level summaries
-                    results['computational_results']['industry_employment'] = ind_summary.rename(columns={
-                        'Industry title': 'Industry',
-                        'Employment': 'Total Employment (thousands)',
-                        'ONET job title': 'Number of Occupations',
-                        'Detailed job tasks': 'Number of Tasks'
-                    })
-                    
-                    # ALSO calculate industry proportions (% of industry workforce)
-                    industry_prop_results = self._compute_industry_proportions(
-                        matching_df,
-                        attribute_name="digital document creators"
-                    )
-                    if industry_prop_results:
-                        results['computational_results']['industry_proportions'] = industry_prop_results
-                        logger.info(f"Industry proportions calculated", show_ui=False)
-                    
-                    logger.info(f"Created {len(results['semantic_results'])} industry-level results", show_ui=False)
-                    
-                else:
-                    # OCCUPATION-LEVEL aggregation (original behavior)
-                    logger.info(f"Task query - aggregating {len(matching_df)} rows BY OCCUPATION", show_ui=False)
-                    
-                    # Aggregate by occupation to get employment totals
-                    occ_summary = matching_df.groupby('ONET job title').agg({
-                        'Employment': 'sum',  # Total employment across all industries
-                        'Industry title': 'nunique',  # Number of industries
-                        'Detailed job tasks': lambda x: '; '.join(x.unique()[:3])  # Sample tasks
-                    }).reset_index()
-                    
-                    # Sort by employment descending
-                    occ_summary = occ_summary.sort_values('Employment', ascending=False)
-                    
-                    logger.info(f"Found {len(occ_summary)} unique occupations with total employment", show_ui=False)
-                    
-                    # Store filtered dataframe for CSV export and follow-up queries
-                    # Create a dataframe with one row per occupation showing totals
-                    results['filtered_dataframe'] = matching_df.copy().reset_index(drop=True)
-                    
-                    # Convert to semantic results format - one result per occupation with employment total
-                    for i, row in occ_summary.iterrows():
-                        results['semantic_results'].append({
-                            'text': f"Occupation: {row['ONET job title']}\nTotal Employment: {row['Employment']:.2f}k workers\nNumber of Industries: {row['Industry title']}\nSample Tasks: {row['Detailed job tasks'][:200]}...",
-                            'score': 1.0 - (i * 0.01),
-                            'metadata': {
-                                'onet_job_title': row['ONET job title'],
-                                'employment': row['Employment'],  # Changed from 'total_employment' to match template ✅
-                                'industry_count': row['Industry title'],
-                                'sample_tasks': row['Detailed job tasks']
-                            }
-                        })
-                    
-                    # Create CSV data with occupation-level summaries
-                    results['computational_results']['occupation_employment'] = occ_summary.rename(columns={
-                        'ONET job title': 'Occupation',
-                        'Employment': 'Total Employment (thousands)',
-                        'Industry title': 'Number of Industries',
-                        'Detailed job tasks': 'Sample Tasks'
-                    })
-                    
-                    logger.info(f"Created {len(results['semantic_results'])} occupation-level results with employment totals", show_ui=False)
+                        'onet_job_title': row['ONET job title'],
+                        'employment': row['Employment'],
+                        'task_sample': row['Detailed job tasks']
+                    }
+                })
             
+            logger.info(f"Provided all {len(results['semantic_results'])} industry-occupation combinations", show_ui=False)
+        
         # Execute semantic search if needed and not using pattern matching
         elif strategy['use_vector_search']:
             semantic_results = self._semantic_retrieval(
