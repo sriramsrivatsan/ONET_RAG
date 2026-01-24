@@ -662,7 +662,7 @@ class ClientView:
                 filename = f"labor_market_results_{timestamp}.csv"
                 
                 st.download_button(
-                    label="📥 Download CSV",
+                    label="📥 CSV Dataset",
                     data=csv_data,
                     file_name=filename,
                     mime="text/csv",
@@ -679,7 +679,7 @@ class ClientView:
                 filename = f"labor_market_results_{timestamp}.csv"
                 
                 st.download_button(
-                    label="📥 Download CSV",
+                    label="📥 CSV Dataset",
                     data=csv_data,
                     file_name=filename,
                     mime="text/csv",
@@ -690,7 +690,7 @@ class ClientView:
             else:
                 # No data available - show disabled button
                 st.button(
-                    "📥 Download CSV",
+                    "📥 CSV Dataset",
                     type="secondary",
                     use_container_width=True,
                     disabled=True,
@@ -876,47 +876,9 @@ class ClientView:
                 
                 st.info(f"📊 Analyzing {len(filtered_df):,} filtered records (from previous query)")
                 
-                # CRITICAL: Detect CSV export requests
-                # User wants the EXISTING data as CSV, not a new summary!
-                query_lower = query.lower()
-                is_csv_export_request = (
-                    any(phrase in query_lower for phrase in ['csv', 'csv format', 'as csv', 'in csv']) and
-                    any(phrase in query_lower for phrase in ['summarize', 'export', 'download', 'give me', 'provide', 'show me'])
-                )
-                
-                if is_csv_export_request:
-                    # User wants the existing filtered data as CSV - don't reprocess!
-                    st.markdown("### 📥 CSV Export")
-                    st.markdown(f"Here is the filtered dataset ({len(filtered_df):,} records) in CSV format:")
-                    
-                    # Show preview
-                    st.dataframe(filtered_df.head(100), use_container_width=True)
-                    if len(filtered_df) > 100:
-                        st.info(f"💡 Showing first 100 rows. Download CSV to see all {len(filtered_df):,} records.")
-                    
-                    # Download button
-                    csv_buffer = StringIO()
-                    filtered_df.to_csv(csv_buffer, index=False)
-                    csv_str = csv_buffer.getvalue()
-                    
-                    timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
-                    filename = f"filtered_results_{timestamp}.csv"
-                    
-                    st.download_button(
-                        label="⬇️ Download Full CSV",
-                        data=csv_str,
-                        file_name=filename,
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="download_filtered_csv"
-                    )
-                    
-                    st.success(f"✅ Ready to download {len(filtered_df):,} records as CSV!")
-                    return
-                
-                # CRITICAL FIX: For follow-up queries, we CANNOT use semantic search
-                # because the vector store has embeddings for the FULL dataset
-                # We must work ONLY with the filtered dataframe using pattern matching/computational
+                # REMOVED: CSV export request detection
+                # User queries containing "CSV" should process normally and return RESPONSE data
+                # The filtered DATASET is always available via the "CSV Dataset" button below
                 
                 # Analyze the query to determine what's needed
                 
