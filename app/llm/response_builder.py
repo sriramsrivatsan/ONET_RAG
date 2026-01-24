@@ -19,6 +19,87 @@ class ResponseBuilder:
         self.client = OpenAI(api_key=api_key)
         self.templates = PromptTemplates()
     
+    def _validate_and_correct_totals(self, answer: str, retrieval_results: Dict[str, Any]) -> str:
+        """
+        Validate and correct occupation/industry summary totals in LLM response
+        
+        Problem: LLM sometimes ignores instructions and shows wrong totals
+        Solution: Find and replace incorrect totals with correct ones from computational_results
+        """
+        computational_results = retrieval_results.get('computational_results', {})
+        
+        # Check if this is an occupation or industry summary with a grand total
+        if 'total_employment' not in computational_results:
+            return answer  # No correction needed
+        
+        correct_total = computational_results['total_employment']
+        
+        # Determine if occupation or industry summary
+        is_occupation = 'total_occupations' in computational_results
+        is_industry = 'total_industries' in computational_results
+        
+        if not (is_occupation or is_industry):
+            return answer  # Not a summary response
+        
+        if is_occupation:
+            count = computational_results['total_occupations']
+            entity_type = "occupations"
+        else:
+            count = computational_results['total_industries']
+            entity_type = "industries"
+        
+        # Pattern to find total employment lines (various formats)
+        import re
+        
+        # Patterns the LLM might use for totals
+        patterns = [
+            r'Total Employment:?\s*[\*\*]*([0-9,]+\.?\d*)\s*thousand\s*workers?\s*\(?.*?\)?\s*across\s*(\d+)\s*' + entity_type,
+            r'Total:?\s*[\*\*]*([0-9,]+\.?\d*)\s*thousand\s*workers?',
+            r'Total Employment:?\s*[\*\*]*([0-9,]+\.?\d*)\s*thousand',
+            r'Total:?\s*[\*\*]*([0-9,]+\.?\d*)\s*k',
+        ]
+        
+        # Check if answer contains a total line
+        found_incorrect_total = False
+        for pattern in patterns:
+            match = re.search(pattern, answer, re.IGNORECASE)
+            if match:
+                reported_total_str = match.group(1).replace(',', '')
+                try:
+                    reported_total = float(reported_total_str)
+                    
+                    # Allow small rounding differences (±0.1%)
+                    diff_pct = abs(reported_total - correct_total) / correct_total * 100
+                    
+                    if diff_pct > 0.1:  # More than 0.1% difference = wrong
+                        found_incorrect_total = True
+                        logger.warning(
+                            f"LLM reported incorrect total: {reported_total:.2f}k (correct: {correct_total:.2f}k, "
+                            f"difference: {diff_pct:.1f}%)",
+                            show_ui=False
+                        )
+                        break
+                except (ValueError, IndexError):
+                    continue
+        
+        if found_incorrect_total:
+            # Replace with correct total
+            correct_line = f"Total Employment: {correct_total:,.2f} thousand workers across {count} {entity_type}"
+            
+            # Try to replace the total line
+            for pattern in patterns:
+                if re.search(pattern, answer, re.IGNORECASE):
+                    answer = re.sub(pattern, correct_line, answer, count=1, flags=re.IGNORECASE)
+                    logger.info(f"✅ Corrected total from LLM output: {correct_total:.2f}k across {count} {entity_type}", show_ui=False)
+                    break
+            
+            # If no replacement made, append correct total
+            if 'Total Employment:' not in answer or found_incorrect_total:
+                answer += f"\n\n**{correct_line}**"
+                logger.info(f"✅ Appended correct total to LLM output: {correct_total:.2f}k", show_ui=False)
+        
+        return answer
+    
     def generate_response(
         self,
         query: str,
@@ -58,6 +139,11 @@ class ResponseBuilder:
             if answer is None:
                 logger.warning("OpenAI returned None content", show_ui=False)
                 return "I apologize, but I wasn't able to generate a response. Please try again."
+            
+            # CRITICAL FIX: Validate and correct occupation/industry summary totals
+            # The LLM sometimes ignores instructions and calculates wrong totals
+            # This post-processing ensures the total is always correct
+            answer = self._validate_and_correct_totals(answer, retrieval_results)
             
             logger.debug(f"Generated response: {len(answer)} characters")
             
