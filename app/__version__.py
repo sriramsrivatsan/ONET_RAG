@@ -2,10 +2,18 @@
 Labor RAG System Version Information
 =====================================
 
-Version 4.0.0 - Generic Task Pattern Framework
+Version 4.0.1.1 - Query Scope Hotfix
 Release Date: January 24, 2025
 
-MAJOR CHANGES:
+HOTFIX CHANGES:
+- Fixed query variable scope error in hybrid_router.py
+- Changed line 160: detect_task_category(query) -> detect_task_category(query_lower)
+
+PREVIOUS FIXES:
+- v4.0.1: Fixed orphaned code block in retriever.py (103 lines removed)
+- v4.0.0: Generic task pattern framework
+
+MAJOR CHANGES (v4.0.0):
 - Removed ALL hardcoded task patterns
 - Implemented generic TaskPatternEngine
 - Configuration-driven pattern matching
@@ -28,7 +36,7 @@ BACKWARD COMPATIBILITY:
 - API unchanged
 """
 
-__version__ = "4.0.0"
+__version__ = "4.0.1.1"
 __release_date__ = "2025-01-24"
 __codename__ = "Genesis"  # First version with zero hardcoding
 

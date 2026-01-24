@@ -157,7 +157,7 @@ class HybridQueryRouter:
         # when the user asks for CSV of the response
         
         # V4.0.0: Generic entity detection using pattern engine (replaces hardcoded keywords)
-        detected_category = self.pattern_engine.detect_task_category(query)
+        detected_category = self.pattern_engine.detect_task_category(query_lower)
         if detected_category:
             # Convert category name to entity parameter
             # e.g., "document_creation" -> "document_creation"
