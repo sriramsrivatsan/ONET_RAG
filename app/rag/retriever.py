@@ -1795,55 +1795,6 @@ Original query: "{original_query}"
         
         return results
     
-    def _create_industry_summary_response(
-        self,
-        matching_df: pd.DataFrame,
-        results: Dict[str, Any],
-        query_lower: str
-    ) -> Dict[str, Any]:
-        """Create industry-level aggregation response"""
-        logger.info(f"Creating industry summary from {len(matching_df)} rows", show_ui=False)
-        
-        ind_summary = matching_df.groupby('Industry title').agg({
-            'Employment': 'sum',
-            'ONET job title': 'nunique',
-            'Detailed job tasks': lambda x: len(x)
-        }).reset_index()
-        
-        ind_summary = ind_summary.sort_values('Employment', ascending=False)
-        
-        results['filtered_dataframe'] = matching_df.copy().reset_index(drop=True)
-        
-        for i, row in ind_summary.iterrows():
-            results['semantic_results'].append({
-                'text': f"Industry: {row['Industry title']}\nTotal Employment: {row['Employment']:.2f}k workers\nNumber of Occupations: {row['ONET job title']}\nNumber of Tasks: {row['Detailed job tasks']}",
-                'score': 1.0 - (i * 0.01),
-                'metadata': {
-                    'industry_title': row['Industry title'],
-                    'employment': row['Employment'],
-                    'occupation_count': row['ONET job title'],
-                    'task_count': row['Detailed job tasks']
-                }
-            })
-        
-        results['computational_results']['industry_employment'] = ind_summary.rename(columns={
-            'Industry title': 'Industry',
-            'Employment': 'Total Employment (thousands)',
-            'ONET job title': 'Number of Occupations',
-            'Detailed job tasks': 'Number of Tasks'
-        })
-        
-        # Calculate industry proportions
-        industry_prop_results = self._compute_industry_proportions(
-            matching_df,
-            attribute_name="matching workers"
-        )
-        if industry_prop_results:
-            results['computational_results']['industry_proportions'] = industry_prop_results
-        
-        return results
-    
-    
     def _compute_time_analysis(
         self,
         df: pd.DataFrame,
