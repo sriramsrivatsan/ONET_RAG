@@ -1,0 +1,447 @@
+# Task Pattern Configuration
+# Defines patterns for identifying different types of tasks in labor market data
+# Version: 2.0.0 - Generic, Extensible Framework
+
+metadata:
+  version: "2.0.0"
+  last_updated: "2025-01-24"
+  description: "Generic task pattern framework for labor market analysis"
+  purpose: "Replace hardcoded patterns with configurable, extensible system"
+
+# ============================================================================
+# TASK CATEGORIES
+# Each category defines patterns for matching specific types of work activities
+# ============================================================================
+
+task_categories:
+  
+  # ------------------------------------------------------------------
+  # DOCUMENT CREATION TASKS
+  # ------------------------------------------------------------------
+  document_creation:
+    display_name: "Digital Document Creation"
+    description: "Tasks involving creation, development, or production of digital documents"
+    
+    # Action verbs that indicate creation/production
+    action_verbs:
+      primary: ["create", "develop", "design", "prepare", "write", "produce", "draft", "compose", "author"]
+      secondary: ["generate", "build", "construct", "formulate", "establish", "initiate"]
+      exclude: ["read", "view", "review", "examine", "study", "observe"]  # Passive actions
+    
+    # Object keywords that specify what is being created
+    object_keywords:
+      primary: ["document", "report", "spreadsheet", "file", "drawing", "plan", "specification"]
+      secondary: ["presentation", "proposal", "contract", "memo", "letter", "form", "chart"]
+      exclude: ["email", "text message", "instant message"]  # Informal communication
+    
+    # Matching strategy
+    matching:
+      strategy: "verb_object"  # Require both action verb AND object keyword
+      min_confidence: 0.7
+      case_sensitive: false
+    
+    # Validation rules
+    validation:
+      min_time_per_week: 0.5  # Minimum hours/week to be significant
+      require_employment_data: true
+    
+    # Aggregation preferences
+    aggregation:
+      de_duplicate_by: ["occupation", "industry"]  # Prevent double-counting
+      default_group_by: "occupation"
+      
+  # ------------------------------------------------------------------
+  # CUSTOMER SERVICE TASKS
+  # ------------------------------------------------------------------
+  customer_service:
+    display_name: "Customer Service & Support"
+    description: "Tasks involving direct customer interaction and support"
+    
+    action_verbs:
+      primary: ["assist", "help", "support", "serve", "resolve", "address"]
+      secondary: ["answer", "respond", "handle", "manage", "provide"]
+      exclude: ["avoid", "ignore", "dismiss"]
+    
+    object_keywords:
+      primary: ["customer", "client", "patron", "guest", "consumer"]
+      secondary: ["inquiry", "complaint", "request", "issue", "problem", "question"]
+      exclude: []
+    
+    matching:
+      strategy: "verb_object"
+      min_confidence: 0.7
+      case_sensitive: false
+    
+    validation:
+      min_time_per_week: 1.0
+      require_employment_data: true
+    
+    aggregation:
+      de_duplicate_by: ["occupation", "industry"]
+      default_group_by: "occupation"
+  
+  # ------------------------------------------------------------------
+  # DATA ANALYSIS TASKS
+  # ------------------------------------------------------------------
+  data_analysis:
+    display_name: "Data Analysis & Analytics"
+    description: "Tasks involving analysis, interpretation, and insights from data"
+    
+    action_verbs:
+      primary: ["analyze", "examine", "evaluate", "assess", "study", "investigate"]
+      secondary: ["interpret", "review", "inspect", "test", "measure", "calculate"]
+      exclude: ["ignore", "overlook"]
+    
+    object_keywords:
+      primary: ["data", "information", "statistics", "metrics", "results", "findings"]
+      secondary: ["trends", "patterns", "performance", "outcomes", "indicators"]
+      exclude: []
+    
+    matching:
+      strategy: "verb_object"
+      min_confidence: 0.7
+      case_sensitive: false
+    
+    validation:
+      min_time_per_week: 2.0
+      require_employment_data: true
+    
+    aggregation:
+      de_duplicate_by: ["occupation", "industry"]
+      default_group_by: "occupation"
+  
+  # ------------------------------------------------------------------
+  # SOFTWARE DEVELOPMENT TASKS
+  # ------------------------------------------------------------------
+  software_development:
+    display_name: "Software Development"
+    description: "Tasks involving software programming, coding, and application development"
+    
+    action_verbs:
+      primary: ["develop", "program", "code", "build", "create", "design"]
+      secondary: ["implement", "debug", "test", "deploy", "maintain", "update"]
+      exclude: ["use", "operate"]  # Using software vs developing it
+    
+    object_keywords:
+      primary: ["software", "application", "program", "code", "system", "platform"]
+      secondary: ["website", "app", "tool", "interface", "database", "api"]
+      exclude: ["document", "spreadsheet"]  # Not software development
+    
+    matching:
+      strategy: "verb_object"
+      min_confidence: 0.7
+      case_sensitive: false
+    
+    validation:
+      min_time_per_week: 5.0  # Typically more time-intensive
+      require_employment_data: true
+    
+    aggregation:
+      de_duplicate_by: ["occupation", "industry"]
+      default_group_by: "occupation"
+  
+  # ------------------------------------------------------------------
+  # TEACHING & INSTRUCTION TASKS
+  # ------------------------------------------------------------------
+  teaching:
+    display_name: "Teaching & Instruction"
+    description: "Tasks involving education, training, and knowledge transfer"
+    
+    action_verbs:
+      primary: ["teach", "instruct", "train", "educate", "mentor", "coach"]
+      secondary: ["demonstrate", "explain", "guide", "tutor", "lecture", "present"]
+      exclude: ["learn", "study"]  # Receiving vs giving instruction
+    
+    object_keywords:
+      primary: ["student", "trainee", "learner", "class", "course", "lesson"]
+      secondary: ["subject", "topic", "skill", "concept", "material", "curriculum"]
+      exclude: []
+    
+    matching:
+      strategy: "verb_object"
+      min_confidence: 0.7
+      case_sensitive: false
+    
+    validation:
+      min_time_per_week: 3.0
+      require_employment_data: true
+    
+    aggregation:
+      de_duplicate_by: ["occupation", "industry"]
+      default_group_by: "occupation"
+  
+  # ------------------------------------------------------------------
+  # SALES & MARKETING TASKS
+  # ------------------------------------------------------------------
+  sales_marketing:
+    display_name: "Sales & Marketing"
+    description: "Tasks involving selling products/services and marketing activities"
+    
+    action_verbs:
+      primary: ["sell", "market", "promote", "advertise", "pitch", "negotiate"]
+      secondary: ["present", "demonstrate", "showcase", "campaign", "prospect"]
+      exclude: ["buy", "purchase"]
+    
+    object_keywords:
+      primary: ["product", "service", "solution", "offering", "merchandise"]
+      secondary: ["sale", "deal", "contract", "campaign", "advertisement", "brand"]
+      exclude: []
+    
+    matching:
+      strategy: "verb_object"
+      min_confidence: 0.7
+      case_sensitive: false
+    
+    validation:
+      min_time_per_week: 2.0
+      require_employment_data: true
+    
+    aggregation:
+      de_duplicate_by: ["occupation", "industry"]
+      default_group_by: "occupation"
+  
+  # ------------------------------------------------------------------
+  # HEALTHCARE TASKS
+  # ------------------------------------------------------------------
+  healthcare_services:
+    display_name: "Healthcare Services"
+    description: "Tasks involving patient care, diagnosis, and medical treatment"
+    
+    action_verbs:
+      primary: ["treat", "diagnose", "examine", "care", "administer", "monitor"]
+      secondary: ["assess", "evaluate", "prescribe", "counsel", "rehabilitate"]
+      exclude: []
+    
+    object_keywords:
+      primary: ["patient", "client", "individual", "case", "condition", "treatment"]
+      secondary: ["health", "medical", "clinical", "therapy", "medication", "diagnosis"]
+      exclude: []
+    
+    matching:
+      strategy: "verb_object"
+      min_confidence: 0.7
+      case_sensitive: false
+    
+    validation:
+      min_time_per_week: 5.0
+      require_employment_data: true
+    
+    aggregation:
+      de_duplicate_by: ["occupation", "industry"]
+      default_group_by: "occupation"
+  
+  # ------------------------------------------------------------------
+  # FINANCIAL ANALYSIS TASKS
+  # ------------------------------------------------------------------
+  financial_analysis:
+    display_name: "Financial Analysis"
+    description: "Tasks involving financial data analysis, accounting, and reporting"
+    
+    action_verbs:
+      primary: ["analyze", "audit", "reconcile", "forecast", "budget", "calculate"]
+      secondary: ["review", "verify", "assess", "evaluate", "project", "estimate"]
+      exclude: []
+    
+    object_keywords:
+      primary: ["financial", "budget", "revenue", "expense", "profit", "loss"]
+      secondary: ["account", "statement", "report", "forecast", "transaction", "balance"]
+      exclude: []
+    
+    matching:
+      strategy: "verb_object"
+      min_confidence: 0.7
+      case_sensitive: false
+    
+    validation:
+      min_time_per_week: 3.0
+      require_employment_data: true
+    
+    aggregation:
+      de_duplicate_by: ["occupation", "industry"]
+      default_group_by: "occupation"
+  
+  # ------------------------------------------------------------------
+  # DESIGN TASKS
+  # ------------------------------------------------------------------
+  design_creative:
+    display_name: "Design & Creative Work"
+    description: "Tasks involving creative design, visual arts, and aesthetic development"
+    
+    action_verbs:
+      primary: ["design", "create", "develop", "illustrate", "conceptualize", "sketch"]
+      secondary: ["draft", "render", "model", "prototype", "visualize"]
+      exclude: []
+    
+    object_keywords:
+      primary: ["design", "graphic", "visual", "artwork", "layout", "concept"]
+      secondary: ["logo", "brand", "interface", "experience", "aesthetic", "style"]
+      exclude: ["document", "report"]  # Not design work
+    
+    matching:
+      strategy: "verb_object"
+      min_confidence: 0.7
+      case_sensitive: false
+    
+    validation:
+      min_time_per_week: 4.0
+      require_employment_data: true
+    
+    aggregation:
+      de_duplicate_by: ["occupation", "industry"]
+      default_group_by: "occupation"
+  
+  # ------------------------------------------------------------------
+  # RESEARCH TASKS
+  # ------------------------------------------------------------------
+  research:
+    display_name: "Research & Investigation"
+    description: "Tasks involving systematic investigation and knowledge discovery"
+    
+    action_verbs:
+      primary: ["research", "investigate", "study", "explore", "examine", "analyze"]
+      secondary: ["survey", "experiment", "test", "observe", "measure", "document"]
+      exclude: []
+    
+    object_keywords:
+      primary: ["research", "study", "investigation", "experiment", "findings", "evidence"]
+      secondary: ["hypothesis", "theory", "data", "sample", "methodology", "results"]
+      exclude: []
+    
+    matching:
+      strategy: "verb_object"
+      min_confidence: 0.7
+      case_sensitive: false
+    
+    validation:
+      min_time_per_week: 5.0
+      require_employment_data: true
+    
+    aggregation:
+      de_duplicate_by: ["occupation", "industry"]
+      default_group_by: "occupation"
+
+# ============================================================================
+# TASK PATTERN MATCHING STRATEGIES
+# ============================================================================
+
+matching_strategies:
+  
+  verb_object:
+    description: "Requires both action verb AND object keyword in task description"
+    logic: "AND"
+    required_components: ["action_verb", "object_keyword"]
+    
+  verb_only:
+    description: "Matches based on action verbs alone"
+    logic: "OR"
+    required_components: ["action_verb"]
+    
+  keyword_any:
+    description: "Matches if any keyword is present"
+    logic: "OR"
+    required_components: ["any_keyword"]
+    
+  complex:
+    description: "Custom boolean logic combining multiple conditions"
+    logic: "CUSTOM"
+    required_components: ["custom_expression"]
+
+# ============================================================================
+# QUERY INTENT PATTERNS
+# ============================================================================
+
+query_patterns:
+  
+  # Patterns for detecting what the user wants to know about
+  task_detection:
+    keywords: ["task", "tasks", "activity", "activities", "work", "duties", "responsibilities"]
+    triggers: ["what tasks", "which tasks", "specific tasks", "task descriptions"]
+    
+  occupation_detection:
+    keywords: ["job", "jobs", "occupation", "occupations", "career", "position", "role"]
+    triggers: ["what jobs", "which jobs", "what occupations", "job titles"]
+    
+  industry_detection:
+    keywords: ["industry", "industries", "sector", "sectors"]
+    triggers: ["by industry", "per industry", "which industries", "industry breakdown"]
+    
+  time_analysis:
+    keywords: ["time", "hours", "duration", "frequency"]
+    triggers: ["how much time", "hours per week", "time spent", "average time"]
+    
+  proportion_analysis:
+    keywords: ["proportion", "percentage", "share", "ratio", "concentration"]
+    triggers: ["high proportion", "rich in", "concentrated in", "percentage of"]
+
+# ============================================================================
+# EXTENSIBILITY FRAMEWORK
+# ============================================================================
+
+extensibility:
+  
+  # Plugin system for custom task categories
+  custom_categories:
+    enabled: true
+    location: "data/custom_task_patterns/"
+    auto_load: true
+    
+  # API for runtime pattern registration
+  dynamic_patterns:
+    enabled: true
+    require_validation: true
+    
+  # Industry-specific pattern overrides
+  industry_specific:
+    enabled: true
+    location: "data/industry_patterns/"
+    
+  # User-defined patterns
+  user_patterns:
+    enabled: true
+    location: "data/user_patterns/"
+    require_admin: false
+
+# ============================================================================
+# VALIDATION RULES
+# ============================================================================
+
+validation_rules:
+  
+  # Ensure patterns don't conflict
+  conflict_detection:
+    enabled: true
+    action: "warn"  # warn, error, or auto-resolve
+    
+  # Minimum quality thresholds
+  quality_thresholds:
+    min_action_verbs: 3
+    min_object_keywords: 3
+    min_confidence_score: 0.5
+    
+  # Performance optimization
+  performance:
+    cache_compiled_patterns: true
+    max_pattern_complexity: 100
+    timeout_seconds: 5.0
+
+# ============================================================================
+# DEFAULT CONFIGURATIONS
+# ============================================================================
+
+defaults:
+  
+  # When category not specified
+  default_category: "document_creation"  # Backward compatibility
+  
+  # Default matching strategy
+  default_strategy: "verb_object"
+  
+  # Default aggregation
+  default_aggregation:
+    de_duplicate_by: ["occupation", "industry"]
+    group_by: "occupation"
+    
+  # Default validation
+  default_validation:
+    min_time_per_week: 0.5
+    require_employment_data: true

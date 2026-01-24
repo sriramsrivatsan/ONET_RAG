@@ -1,17 +1,24 @@
 """
 Retriever that orchestrates hybrid semantic and computational retrieval
+Version 4.0.0 - Generic pattern-based system with zero hardcoding
 """
 import pandas as pd
 from typing import Dict, List, Any, Optional
 
 from app.rag.vector_store import VectorStore
 from app.rag.hybrid_router import HybridQueryRouter, QueryIntent
+from app.rag.task_pattern_engine import get_pattern_engine
 from app.analytics.aggregations import DataAggregator
 from app.utils.logging import logger
 
 
 class HybridRetriever:
-    """Orchestrates hybrid retrieval combining semantic search and computational queries"""
+    """
+    Orchestrates hybrid retrieval combining semantic search and computational queries.
+    
+    Version 4.0.0: Uses generic TaskPatternEngine for all pattern matching.
+    No hardcoded patterns - all configuration-driven.
+    """
     
     def __init__(
         self,
@@ -23,6 +30,13 @@ class HybridRetriever:
         self.df = dataframe
         self.aggregator = aggregator
         self.router = HybridQueryRouter()
+        
+        # V4.0.0: Initialize generic pattern engine
+        self.pattern_engine = get_pattern_engine()
+        logger.info(
+            f"✓ v4.0.0: Generic pattern engine loaded with {len(self.pattern_engine.categories)} task categories",
+            show_ui=False
+        )
     
     def retrieve(
         self,
@@ -91,16 +105,27 @@ class HybridRetriever:
             'dollar saving', 'cost saving', 'financial saving', 'roi', 'return on investment'
         ])
         
-        # Special handling for document creation queries
-        is_document_creation_query = (
-            any(keyword in query_lower for keyword in ['document', 'digital document', 'create document', 'documents']) and
-            any(verb in query_lower for verb in ['create', 'creating', 'develop', 'prepare', 'write', 'produce', 'generating'])
-        )
+        # V4.0.0: GENERIC pattern detection (replaces hardcoded document creation)
+        # Detect task category from query using pattern engine
+        detected_category = self.pattern_engine.detect_task_category(query)
+        
+        if detected_category:
+            category_config = self.pattern_engine.get_category_config(detected_category)
+            results['metadata']['task_category'] = detected_category
+            results['metadata']['category_display_name'] = category_config.display_name
+            logger.info(f"✓ v4.0.0: Detected task category: {detected_category}", show_ui=False)
+        
+        # Check if this is a task-based query (any category detected)
+        is_task_category_query = detected_category is not None
+        
+        # Detect query intents using pattern engine
+        query_intents = self.pattern_engine.detect_query_intent(query)
         
         # Detect breakdown queries that need comprehensive industry-occupation data
+        # V4.0.0: Use detected category instead of hardcoded keywords
         is_breakdown_query = (
             any(kw in query_lower for kw in ['breakdown', 'by industry and occupation', 'tabular format', 'provide industry']) and
-            any(kw in query_lower for kw in ['document', 'digital document'])
+            detected_category is not None  # V4.0.0: Generic check
         )
         
         
@@ -114,13 +139,13 @@ class HybridRetriever:
         # NEW: Handle general industry/occupation ranking queries (no task filter)
         is_general_industry_ranking = (
             wants_industry_summary and 
-            not is_document_creation_query and
+            not is_task_category_query and  # V4.0.0: Generic check
             any(kw in query_lower for kw in ['highest', 'most', 'largest', 'biggest', 'top', 'ranking', 'rank'])
         )
         
         is_general_occupation_ranking = (
             wants_occupation_summary and
-            not is_document_creation_query and
+            not is_task_category_query and  # V4.0.0: Generic check
             any(kw in query_lower for kw in ['highest', 'most', 'largest', 'biggest', 'top', 'ranking', 'rank', 'diverse', 'diversity'])
         )
         
@@ -132,22 +157,19 @@ class HybridRetriever:
             logger.info("General occupation ranking query - aggregating ALL occupations", show_ui=False)
             return self._create_general_occupation_ranking(results, query_lower)
         
-        # Document creation queries (existing logic)
-        elif is_document_creation_query and self.df is not None:
-            logger.info(f"Document creation query detected - using pattern matching", show_ui=False)
+        # V4.0.0: GENERIC task category queries (replaces hardcoded document creation)
+        elif is_task_category_query and self.df is not None:
+            logger.info(f"✓ v4.0.0: Task category query detected ({detected_category}) - using generic pattern matching", show_ui=False)
             
-            # Pattern match on full dataset
-            action_verbs = ['create', 'develop', 'design', 'prepare', 'write', 'produce']
-            object_keywords = ['document', 'report', 'spreadsheet', 'file', 'drawing', 'plan']
+            # GENERIC pattern matching using engine (replaces hardcoded action_verbs/object_keywords)
+            matching_df = self.pattern_engine.filter_dataframe(
+                self.df,
+                detected_category,
+                task_column='Detailed job tasks',
+                return_match_details=False
+            )
             
-            matching_df = self.df[
-                self.df['Detailed job tasks'].apply(
-                    lambda x: any(verb in str(x).lower() for verb in action_verbs) and 
-                              any(kw in str(x).lower() for kw in object_keywords)
-                )
-            ]
-            
-            logger.info(f"Pattern matching found {len(matching_df)} rows", show_ui=False)
+            logger.info(f"✓ v4.0.0: Generic pattern matching found {len(matching_df)} rows for {detected_category}", show_ui=False)
             
             # ROUTE 1: User wants TASK DETAILS (task descriptions with time)
             if wants_task_details:
@@ -165,20 +187,18 @@ class HybridRetriever:
                 results = self._create_occupation_summary_response(matching_df, results, query_lower)
             
         
-        # Handle breakdown queries (separate path)
-        elif is_breakdown_query and self.df is not None:
-            logger.info("Breakdown query - providing ALL industry-occupation combinations", show_ui=False)
+        # Handle breakdown queries (V4.0.0: now uses generic pattern matching)
+        elif is_breakdown_query and detected_category and self.df is not None:
+            logger.info(f"✓ v4.0.0: Breakdown query for {detected_category}", show_ui=False)
             
-            # Pattern match for breakdown queries
-            action_verbs = ['create', 'develop', 'design', 'prepare', 'write', 'produce']
-            object_keywords = ['document', 'report', 'spreadsheet', 'file', 'drawing', 'plan']
+            # V4.0.0: Generic pattern matching (replaces hardcoded patterns)
+            matching_df = self.pattern_engine.filter_dataframe(
+                self.df,
+                detected_category,
+                task_column='Detailed job tasks'
+            )
             
-            matching_df = self.df[
-                self.df['Detailed job tasks'].apply(
-                    lambda x: any(verb in str(x).lower() for verb in action_verbs) and 
-                              any(kw in str(x).lower() for kw in object_keywords)
-                )
-            ]
+            logger.info(f"✓ v4.0.0: Breakdown query - generic pattern matching found {len(matching_df)} rows", show_ui=False)
             
             # Get all unique industry-occupation pairs with employment
             ind_occ_data = matching_df.groupby(['Industry title', 'ONET job title']).agg({
@@ -1207,33 +1227,22 @@ Original query: "{original_query}"
             attribute_name = "workers matching criteria"
             pattern_df = None
             
-            if 'digital document' in query.lower():
-                attribute_name = "digital document workers"
-                # Pattern match for document creation on FULL dataset
-                logger.info("Pattern matching for digital documents on full dataset", show_ui=False)
-                action_verbs = ['create', 'develop', 'design', 'prepare', 'write', 'produce']
-                object_keywords = ['document', 'report', 'spreadsheet', 'file', 'drawing', 'plan']
+            # V4.0.0: Use generic pattern engine instead of hardcoded patterns
+            detected_category = self.pattern_engine.detect_task_category(query)
+            
+            if detected_category:
+                category_config = self.pattern_engine.get_category_config(detected_category)
+                attribute_name = f"{category_config.display_name.lower()} workers"
                 
-                pattern_df = self.df[
-                    self.df['Detailed job tasks'].apply(
-                        lambda x: any(verb in str(x).lower() for verb in action_verbs) and 
-                                  any(kw in str(x).lower() for kw in object_keywords)
-                    )
-                ]
-                logger.info(f"Pattern matching found {len(pattern_df)} rows (of {len(self.df)} total)", show_ui=False)
+                # Generic pattern matching using engine
+                logger.info(f"✓ v4.0.0: Generic pattern matching for {detected_category} on full dataset", show_ui=False)
                 
-            elif 'customer service' in query.lower():
-                attribute_name = "customer service workers"
-                # Pattern match for customer service tasks
-                logger.info("Pattern matching for customer service on full dataset", show_ui=False)
-                service_keywords = ['customer', 'client', 'service', 'support', 'assist']
-                
-                pattern_df = self.df[
-                    self.df['Detailed job tasks'].apply(
-                        lambda x: any(kw in str(x).lower() for kw in service_keywords)
-                    )
-                ]
-                logger.info(f"Pattern matching found {len(pattern_df)} rows (of {len(self.df)} total)", show_ui=False)
+                pattern_df = self.pattern_engine.filter_dataframe(
+                    self.df,
+                    detected_category,
+                    task_column='Detailed job tasks'
+                )
+                logger.info(f"✓ v4.0.0: Pattern matching found {len(pattern_df)} rows (of {len(self.df)} total)", show_ui=False)
                 
             elif params.get('entity'):
                 attribute_name = f"{params['entity']} workers"
@@ -1349,35 +1358,29 @@ Original query: "{original_query}"
         pattern_detected = any(indicator in query_lower for indicator in pattern_indicators)
         logger.info(f"Pattern matching check: pattern_detected={pattern_detected}, is_task_query={is_task_query}, is_job_query={is_job_query}", show_ui=False)
         
-        # Only do occupation-level pattern matching for JOB queries, not TASK queries
+        # V4.0.0: Generic occupation-level pattern matching for JOB queries
         if pattern_detected and is_job_query and not is_task_query:
-            action_verbs_present = ['create', 'develop', 'design', 'prepare', 'write', 'produce']
-            object_keywords_present = ['document', 'report', 'spreadsheet', 'file', 'presentation', 
-                                      'drawing', 'plan', 'specification', 'program', 'model']
+            # V4.0.0: Detect category using generic engine
+            detected_category = self.pattern_engine.detect_task_category(query)
             
-            has_action = any(verb in query_lower for verb in action_verbs_present)
-            has_object = any(doc in query_lower for doc in object_keywords_present)
-            
-            logger.info(f"Pattern matching: has_action={has_action}, has_object={has_object}", show_ui=False)
-            
-            # Detect document creation queries
-            if has_action and has_object:
-                logger.info("Pattern match FOUND - triggering occupation analysis", show_ui=False)
-                
-                action_verbs = ['create', 'develop', 'design', 'prepare', 'write', 'produce', 
-                               'generate', 'build', 'draft', 'compose', 'formulate']
-                object_keywords = ['document', 'documents', 'report', 'reports', 'spreadsheet', 'spreadsheets',
-                                  'file', 'files', 'drawing', 'drawings', 'plan', 'plans', 'specification',
-                                  'specifications', 'presentation', 'presentations', 'program', 'programs',
-                                  'model', 'models', 'diagram', 'chart', 'graph', 'blueprint', 'schematic']
+            if detected_category:
+                logger.info(f"✓ v4.0.0: Pattern match FOUND ({detected_category}) - triggering occupation analysis", show_ui=False)
                 
                 # CRITICAL: Use full dataframe, not filtered subset
                 # Pattern matching needs to analyze ALL occupations, not just semantically similar ones
                 logger.info(f"Analyzing {self.df['ONET job title'].nunique()} occupations for pattern", show_ui=False)
                 
-                occupation_analysis = self._analyze_occupations_by_pattern(
-                    self.df, action_verbs, object_keywords
+                # V4.0.0: Get matching dataframe using generic engine
+                matching_df = self.pattern_engine.filter_dataframe(
+                    self.df,
+                    detected_category,
+                    task_column='Detailed job tasks'
                 )
+                
+                # Analyze occupations from matching data
+                occupation_analysis = self._analyze_occupations_from_matches(matching_df)
+                computational_results['occupation_pattern_analysis'] = occupation_analysis
+                logger.info(f"✓ v4.0.0: Pattern analysis complete: {len(occupation_analysis.get('top_occupations', []))} occupations matched", show_ui=False)
                 computational_results['occupation_pattern_analysis'] = occupation_analysis
                 logger.info(f"Pattern analysis complete: {len(occupation_analysis.get('top_occupations', []))} occupations matched", show_ui=False)
                 
@@ -2109,6 +2112,72 @@ Original query: "{original_query}"
         
         return task_analysis
     
+    def _analyze_occupations_from_matches(
+        self,
+        matching_df: pd.DataFrame
+    ) -> Dict[str, Any]:
+        """
+        V4.0.0: Analyze which occupations are present in filtered/matched data.
+        Generic method that works with any pre-filtered dataframe.
+        
+        Args:
+            matching_df: DataFrame already filtered by pattern engine
+        
+        Returns:
+            Dictionary with occupation rankings
+        """
+        occupation_scores = {}
+        
+        # Get all occupations from the full dataset for comparison
+        all_occupations = self.df['ONET job title'].unique() if self.df is not None else matching_df['ONET job title'].unique()
+        
+        for occupation in matching_df['ONET job title'].unique():
+            # Get tasks for this occupation that matched the pattern
+            occ_matching_tasks = matching_df[matching_df['ONET job title'] == occupation]['Detailed job tasks'].dropna()
+            
+            # Get all tasks for this occupation (from full dataset)
+            if self.df is not None:
+                occ_all_tasks = self.df[self.df['ONET job title'] == occupation]['Detailed job tasks'].dropna()
+                total_count = len(occ_all_tasks)
+            else:
+                total_count = len(occ_matching_tasks)
+            
+            matching_count = len(occ_matching_tasks)
+            matching_examples = []
+            
+            # Get examples
+            for i, task in enumerate(occ_matching_tasks):
+                if len(matching_examples) < 2:
+                    matching_examples.append(str(task)[:120] + "...")
+                if i >= 1:
+                    break
+            
+            if matching_count > 0 and total_count > 0:
+                occupation_scores[occupation] = {
+                    'matching_tasks': matching_count,
+                    'total_tasks': total_count,
+                    'percentage': (matching_count / total_count) * 100,
+                    'examples': matching_examples
+                }
+        
+        # Sort by percentage
+        sorted_occupations = sorted(
+            occupation_scores.items(),
+            key=lambda x: x[1]['percentage'],
+            reverse=True
+        )
+        
+        analysis = {
+            'total_occupations_analyzed': len(all_occupations),
+            'occupations_with_matches': len(occupation_scores),
+            'top_occupations': sorted_occupations[:15],
+            'method': 'v4.0.0_generic_pattern_engine'
+        }
+        
+        logger.info(f"✓ v4.0.0: Occupation analysis: {len(occupation_scores)} occupations match pattern", show_ui=False)
+        
+        return analysis
+    
     def _analyze_occupations_by_pattern(
         self,
         df: pd.DataFrame,
@@ -2116,7 +2185,8 @@ Original query: "{original_query}"
         object_keywords: List[str]
     ) -> Dict[str, Any]:
         """
-        Analyze which occupations have tasks matching specific patterns
+        LEGACY (v3.x): Analyze which occupations have tasks matching specific patterns.
+        Kept for backward compatibility but should not be used in v4.0.0+
         
         Args:
             df: DataFrame with task data
@@ -2126,6 +2196,8 @@ Original query: "{original_query}"
         Returns:
             Dictionary with occupation rankings
         """
+        logger.warning("⚠️  Using legacy _analyze_occupations_by_pattern (should use _analyze_occupations_from_matches in v4.0.0)", show_ui=False)
+        
         occupation_scores = {}
         
         for occupation in df['ONET job title'].unique():

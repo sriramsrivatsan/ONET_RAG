@@ -1,9 +1,11 @@
 """
 Hybrid query router for intent classification and routing
+Version 4.0.0 - Uses generic TaskPatternEngine for entity detection
 """
 from typing import Dict, Any, List, Tuple
 from enum import Enum
 
+from app.rag.task_pattern_engine import get_pattern_engine
 from app.utils.config import config
 from app.utils.logging import logger
 
@@ -16,11 +18,15 @@ class QueryIntent(Enum):
 
 
 class HybridQueryRouter:
-    """Routes queries based on intent classification"""
+    """Routes queries based on intent classification - V4.0.0 with generic pattern engine"""
     
     def __init__(self):
         self.computational_keywords = set(config.COMPUTATIONAL_KEYWORDS)
         self.semantic_keywords = set(config.SEMANTIC_KEYWORDS)
+        
+        # V4.0.0: Initialize pattern engine for entity detection
+        self.pattern_engine = get_pattern_engine()
+        logger.info(f"✓ v4.0.0: HybridQueryRouter initialized with generic pattern engine", show_ui=False)
     
     def classify_query(self, query: str) -> Tuple[QueryIntent, Dict[str, Any]]:
         """
@@ -150,13 +156,14 @@ class HybridQueryRouter:
         # Setting export_csv=True here causes the WRONG data (filtered dataset) to be returned
         # when the user asks for CSV of the response
         
-        # Check for specific entities mentioned
-        if 'digital document' in query_lower:
-            params['entity'] = 'digital_document'
-        elif 'customer service' in query_lower:
-            params['entity'] = 'customer_service'
-        elif 'agentic' in query_lower or 'agent' in query_lower:
-            params['entity'] = 'ai_agent'
+        # V4.0.0: Generic entity detection using pattern engine (replaces hardcoded keywords)
+        detected_category = self.pattern_engine.detect_task_category(query)
+        if detected_category:
+            # Convert category name to entity parameter
+            # e.g., "document_creation" -> "document_creation"
+            params['entity'] = detected_category
+            params['entity_display_name'] = self.pattern_engine.get_category_config(detected_category).display_name
+            logger.info(f"✓ v4.0.0: Detected entity: {detected_category}", show_ui=False)
         
         # Detect task-level queries
         task_indicators = ['specific tasks', 'what tasks', 'which tasks', 'tasks that', 
