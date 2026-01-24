@@ -144,9 +144,11 @@ class HybridQueryRouter:
                 if 'task_query' in params:
                     del params['task_query']
         
-        # Check for CSV export request
-        if 'csv' in query_lower or 'export' in query_lower or 'download' in query_lower:
-            params['export_csv'] = True
+        # REMOVED: CSV export request detection
+        # The QueryProcessor already handles CSV correctly by prioritizing response data
+        # (occupation_employment, industry_employment) over filtered dataset
+        # Setting export_csv=True here causes the WRONG data (filtered dataset) to be returned
+        # when the user asks for CSV of the response
         
         # Check for specific entities mentioned
         if 'digital document' in query_lower:

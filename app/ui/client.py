@@ -662,7 +662,7 @@ class ClientView:
                 filename = f"labor_market_results_{timestamp}.csv"
                 
                 st.download_button(
-                    label="📥 CSV Dataset",
+                    label="📥 Download Filtered Dataset (CSV)",
                     data=csv_data,
                     file_name=filename,
                     mime="text/csv",
@@ -670,22 +670,15 @@ class ClientView:
                     use_container_width=True,
                     key="btn_download_direct"
                 )
-            elif st.session_state.last_query_results and st.session_state.last_query_results.get('csv_data') is not None:
-                # Fallback to CSV data from results
-                csv_buffer = StringIO()
-                st.session_state.last_query_results['csv_data'].to_csv(csv_buffer, index=False)
-                csv_data = csv_buffer.getvalue()
-                timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"labor_market_results_{timestamp}.csv"
-                
-                st.download_button(
-                    label="📥 CSV Dataset",
-                    data=csv_data,
-                    file_name=filename,
-                    mime="text/csv",
+            elif st.session_state.get('filtered_dataset') is None or st.session_state.filtered_dataset.empty:
+                # No filtered dataset - show disabled button
+                st.button(
+                    "📥 Download Filtered Dataset (CSV)",
                     type="secondary",
                     use_container_width=True,
-                    key="btn_download_direct"
+                    disabled=True,
+                    key="btn_download_disabled",
+                    help="No filtered dataset available. Run a query first."
                 )
             else:
                 # No data available - show disabled button
