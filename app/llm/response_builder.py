@@ -28,7 +28,7 @@ class ResponseBuilder:
         """
         computational_results = retrieval_results.get('computational_results', {})
         
-        # Check if this is an occupation or industry summary with a grand total
+        # Check if this is a summary with a grand total (occupation, industry, or task query)
         if 'total_employment' not in computational_results:
             logger.debug("No total_employment in computational_results - skipping validation", show_ui=False)
             return answer  # No correction needed
@@ -36,15 +36,19 @@ class ResponseBuilder:
         correct_total = computational_results['total_employment']
         logger.info(f"🔍 Validating totals - correct total from data: {correct_total:.2f}k", show_ui=False)
         
-        # Determine if occupation or industry summary
-        is_occupation = 'total_occupations' in computational_results
+        # Determine query type: occupation, industry, or task summary
+        is_occupation = 'total_occupations' in computational_results and 'total_tasks' not in computational_results
         is_industry = 'total_industries' in computational_results
+        is_task = 'total_tasks' in computational_results
         
-        if not (is_occupation or is_industry):
-            logger.debug("Not an occupation or industry summary - skipping validation", show_ui=False)
+        if not (is_occupation or is_industry or is_task):
+            logger.debug("Not a recognized summary type - skipping validation", show_ui=False)
             return answer  # Not a summary response
         
-        if is_occupation:
+        if is_task:
+            count = computational_results.get('total_tasks', 0)
+            entity_type = "tasks"
+        elif is_occupation:
             count = computational_results['total_occupations']
             entity_type = "occupations"
         else:

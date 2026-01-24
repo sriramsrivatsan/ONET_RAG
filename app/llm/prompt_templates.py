@@ -88,6 +88,12 @@ For TASK queries (What tasks/specific tasks):
 - Show many task descriptions (use ALL tasks provided, or up to 100 if very large dataset)
 - Include time per task and industry count
 - Ensure diversity across occupations (show multiple occupations)
+- CRITICAL: When showing total employment summary for task queries:
+  * The entity count is NUMBER OF TASKS, not occupations
+  * Format: "Total Employment: X thousand workers across Y tasks from Z occupations"
+  * Example: "Total Employment: 5,018.44 thousand workers across 100 tasks from 22 occupations"
+  * DO NOT say "across 100 occupations" when showing 100 tasks!
+  * If computational_results has total_tasks, use that count
 
 For INDUSTRY queries (total/employment by industry):
 - Format: Table or list showing EACH INDUSTRY with its employment

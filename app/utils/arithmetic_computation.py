@@ -167,8 +167,23 @@ class ArithmeticComputationLayer:
                 description="occupations_with_tasks"
             )
             results['total_occupations'] = occ_count.value
+            results['occupation_count_verified'] = occ_count
         
-        # 3. TIME STATISTICS (if available)
+        # 3. TOTAL EMPLOYMENT
+        # CRITICAL: For task queries, we need total employment across occupations
+        # De-duplicate by (occupation, industry) before summing to avoid double-counting
+        if 'Employment' in task_df.columns and 'ONET job title' in task_df.columns and 'Industry title' in task_df.columns:
+            # De-duplicate at occupation-industry level
+            unique_occ_ind = task_df.groupby(['ONET job title', 'Industry title'])['Employment'].first()
+            total_employment = self.validator.compute_sum(
+                data=unique_occ_ind.tolist(),
+                description="total_employment_task_occupations",
+                unit='k'
+            )
+            results['total_employment'] = total_employment.value
+            results['total_employment_verified'] = total_employment
+        
+        # 4. TIME STATISTICS (if available)
         if 'Hours per week spent on task' in task_df.columns:
             time_values = task_df['Hours per week spent on task'].dropna().tolist()
             if time_values:
