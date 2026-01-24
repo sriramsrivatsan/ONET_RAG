@@ -754,7 +754,12 @@ Original query: "{original_query}"
             'Detailed job tasks': lambda x: list(x.unique())  # Collect unique tasks
         }).reset_index()
         
-        logger.info(f"De-duplicated to {len(unique_occ_ind)} unique occupation-industry pairs", show_ui=False)
+        logger.info(f"📊 De-duplicated from {len(matching_df)} rows to {len(unique_occ_ind)} unique occupation-industry pairs", show_ui=False)
+        
+        # Debug: Log sample of de-duplicated data
+        if len(unique_occ_ind) > 0:
+            sample_emp_sum = unique_occ_ind['Employment'].sum()
+            logger.info(f"📊 Sum of employment across all {len(unique_occ_ind)} unique pairs: {sample_emp_sum:.2f}k", show_ui=False)
         
         # Step 2: Now sum employment by occupation (no more double-counting!)
         occ_summary = unique_occ_ind.groupby('ONET job title').agg({
@@ -765,7 +770,8 @@ Original query: "{original_query}"
             'Hourly wage': 'mean'
         }).reset_index()
         
-        logger.info(f"Aggregated to {len(occ_summary)} unique occupations with correct employment totals", show_ui=False)
+        logger.info(f"📊 Aggregated to {len(occ_summary)} unique occupations", show_ui=False)
+        logger.info(f"📊 Sum of employment across all {len(occ_summary)} occupations: {occ_summary['Employment'].sum():.2f}k", show_ui=False)
         
         occ_summary = occ_summary.sort_values('Employment', ascending=False)
         

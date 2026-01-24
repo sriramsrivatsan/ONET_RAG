@@ -30,15 +30,18 @@ class ResponseBuilder:
         
         # Check if this is an occupation or industry summary with a grand total
         if 'total_employment' not in computational_results:
+            logger.debug("No total_employment in computational_results - skipping validation", show_ui=False)
             return answer  # No correction needed
         
         correct_total = computational_results['total_employment']
+        logger.info(f"🔍 Validating totals - correct total from data: {correct_total:.2f}k", show_ui=False)
         
         # Determine if occupation or industry summary
         is_occupation = 'total_occupations' in computational_results
         is_industry = 'total_industries' in computational_results
         
         if not (is_occupation or is_industry):
+            logger.debug("Not an occupation or industry summary - skipping validation", show_ui=False)
             return answer  # Not a summary response
         
         if is_occupation:
@@ -48,55 +51,69 @@ class ResponseBuilder:
             count = computational_results['total_industries']
             entity_type = "industries"
         
+        logger.info(f"🔍 Validating {entity_type} summary with {count} {entity_type}", show_ui=False)
+        
         # Pattern to find total employment lines (various formats)
         import re
         
         # Patterns the LLM might use for totals
         patterns = [
-            r'Total Employment:?\s*[\*\*]*([0-9,]+\.?\d*)\s*thousand\s*workers?\s*\(?.*?\)?\s*across\s*(\d+)\s*' + entity_type,
-            r'Total:?\s*[\*\*]*([0-9,]+\.?\d*)\s*thousand\s*workers?',
-            r'Total Employment:?\s*[\*\*]*([0-9,]+\.?\d*)\s*thousand',
-            r'Total:?\s*[\*\*]*([0-9,]+\.?\d*)\s*k',
+            (r'Total Employment:?\s*[\*\*]*([0-9,]+\.?\d*)\s*thousand\s*workers?\s*\(?.*?\)?\s*across\s*(\d+)\s*' + entity_type, 'full'),
+            (r'Total Employment:?\s*[\*\*]*([0-9,]+\.?\d*)\s*thousand\s*workers?', 'basic'),
+            (r'Total Employment:?\s*[\*\*]*([0-9,]+\.?\d*)\s*thousand', 'short'),
+            (r'Total:?\s*[\*\*]*([0-9,]+\.?\d*)\s*thousand\s*workers?', 'total_basic'),
+            (r'Total:?\s*[\*\*]*([0-9,]+\.?\d*)\s*k', 'total_k'),
         ]
         
         # Check if answer contains a total line
         found_incorrect_total = False
-        for pattern in patterns:
+        reported_total = None
+        matched_pattern = None
+        
+        for pattern, pattern_name in patterns:
             match = re.search(pattern, answer, re.IGNORECASE)
             if match:
                 reported_total_str = match.group(1).replace(',', '')
                 try:
                     reported_total = float(reported_total_str)
+                    matched_pattern = pattern
+                    
+                    logger.info(f"🔍 Found total in LLM output (pattern: {pattern_name}): {reported_total:.2f}k", show_ui=False)
                     
                     # Allow small rounding differences (±0.1%)
                     diff_pct = abs(reported_total - correct_total) / correct_total * 100
+                    diff_abs = abs(reported_total - correct_total)
                     
                     if diff_pct > 0.1:  # More than 0.1% difference = wrong
                         found_incorrect_total = True
                         logger.warning(
-                            f"LLM reported incorrect total: {reported_total:.2f}k (correct: {correct_total:.2f}k, "
-                            f"difference: {diff_pct:.1f}%)",
-                            show_ui=False
+                            f"🚨 LLM REPORTED WRONG TOTAL: {reported_total:.2f}k (correct: {correct_total:.2f}k, "
+                            f"difference: {diff_abs:.2f}k = {diff_pct:.1f}%)",
+                            show_ui=True
                         )
                         break
-                except (ValueError, IndexError):
+                    else:
+                        logger.info(f"✅ Total is correct (difference: {diff_pct:.3f}%)", show_ui=False)
+                        return answer  # Total is correct, no need to fix
+                except (ValueError, IndexError) as e:
+                    logger.warning(f"Error parsing total from pattern {pattern_name}: {e}", show_ui=False)
                     continue
         
-        if found_incorrect_total:
-            # Replace with correct total
+        if reported_total is None:
+            logger.warning(f"⚠️ No total found in LLM output - will append correct total", show_ui=False)
+        
+        if found_incorrect_total or reported_total is None:
+            # Create correct total line
             correct_line = f"Total Employment: {correct_total:,.2f} thousand workers across {count} {entity_type}"
             
-            # Try to replace the total line
-            for pattern in patterns:
-                if re.search(pattern, answer, re.IGNORECASE):
-                    answer = re.sub(pattern, correct_line, answer, count=1, flags=re.IGNORECASE)
-                    logger.info(f"✅ Corrected total from LLM output: {correct_total:.2f}k across {count} {entity_type}", show_ui=False)
-                    break
-            
-            # If no replacement made, append correct total
-            if 'Total Employment:' not in answer or found_incorrect_total:
+            if found_incorrect_total and matched_pattern:
+                # Try to replace the incorrect total line
+                answer = re.sub(matched_pattern, correct_line, answer, count=1, flags=re.IGNORECASE)
+                logger.info(f"✅ CORRECTED TOTAL: Replaced {reported_total:.2f}k with {correct_total:.2f}k", show_ui=True)
+            else:
+                # Append correct total
                 answer += f"\n\n**{correct_line}**"
-                logger.info(f"✅ Appended correct total to LLM output: {correct_total:.2f}k", show_ui=False)
+                logger.info(f"✅ APPENDED CORRECT TOTAL: {correct_total:.2f}k across {count} {entity_type}", show_ui=True)
         
         return answer
     
