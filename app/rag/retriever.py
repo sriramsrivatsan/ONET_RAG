@@ -488,8 +488,9 @@ class HybridRetriever:
         # Merge computational results (validated arithmetic)
         results['computational_results'].update(computational_results)
         
-        # Store validator for later validation
+        # Store validator for later validation (in BOTH places for safety)
         results['arithmetic_validator'] = computation_layer.get_validator()
+        results['computational_results']['arithmetic_validator'] = computation_layer.get_validator()
         
         logger.info(f"✅ ARITHMETIC VALIDATION: Computed and verified {len(computation_layer.get_validator().computed_values)} values", show_ui=False)
         logger.info(f"Created {len(task_details)} task detail results from {len(occ_counts)} occupations", show_ui=False)
@@ -768,8 +769,10 @@ Original query: "{original_query}"
         # Merge computational results (validated arithmetic)
         results['computational_results'].update(computational_results)
         
-        # Store validator for later validation
+        # Store validator for later validation (in BOTH places for safety)
+        # Top level for direct access, and in computational_results for merge preservation
         results['arithmetic_validator'] = computation_layer.get_validator()
+        results['computational_results']['arithmetic_validator'] = computation_layer.get_validator()
         
         # Calculate industry proportions
         industry_prop_results = self._compute_industry_proportions(
@@ -867,8 +870,10 @@ Original query: "{original_query}"
         # Merge computational results (validated arithmetic)
         results['computational_results'].update(computational_results)
         
-        # Store validator for later validation
+        # Store validator for later validation (in BOTH places for safety)
+        # Top level for direct access, and in computational_results for merge preservation
         results['arithmetic_validator'] = computation_layer.get_validator()
+        results['computational_results']['arithmetic_validator'] = computation_layer.get_validator()
         
         logger.info(f"✅ ARITHMETIC VALIDATION: Computed and verified {len(computation_layer.get_validator().computed_values)} values", show_ui=False)
         logger.info(f"Created {len(results['semantic_results'])} occupation-level results with verified total: {computational_results['total_employment']:.2f}k workers", show_ui=False)
@@ -1782,8 +1787,9 @@ Original query: "{original_query}"
         # Merge computational results (validated arithmetic)
         results['computational_results'].update(computational_results)
         
-        # Store validator for later validation
+        # Store validator for later validation (in BOTH places for safety)
         results['arithmetic_validator'] = computation_layer.get_validator()
+        results['computational_results']['arithmetic_validator'] = computation_layer.get_validator()
         
         logger.info(f"✅ ARITHMETIC VALIDATION: Computed and verified {len(computation_layer.get_validator().computed_values)} values", show_ui=False)
         
