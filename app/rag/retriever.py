@@ -332,14 +332,37 @@ class HybridRetriever:
                 routing_info['params'],
                 semantic_results=results['semantic_results']
             )
-            # Ensure we have a dict, not None
-            results['computational_results'] = computational_results if computational_results is not None else {}
+            
+            # CRITICAL FIX: MERGE computational results instead of overwriting
+            # Occupation/industry summary responses may have already set validated totals
+            # Pattern matching should AUGMENT, not REPLACE those results
+            if computational_results:
+                # If computational_results already exists from response function, merge carefully
+                if results['computational_results']:
+                    logger.info("Merging computational results from multiple sources", show_ui=False)
+                    
+                    # Preserve validated values from response functions
+                    for key in ['total_employment', 'total_occupations', 'total_industries',
+                                'total_employment_verified', 'occupation_count_verified',
+                                'industry_count_verified', 'arithmetic_validator', 'arithmetic_metadata']:
+                        if key in results['computational_results'] and key not in computational_results:
+                            # Keep the existing validated value
+                            logger.debug(f"Preserving {key} from response function", show_ui=False)
+                            computational_results[key] = results['computational_results'][key]
+                    
+                    # Also preserve occupation_employment and industry_employment DataFrames
+                    for key in ['occupation_employment', 'industry_employment']:
+                        if key in results['computational_results']:
+                            computational_results[key] = results['computational_results'][key]
+                
+                # Now update with merged results
+                results['computational_results'].update(computational_results)
             
             # Extract filtered_dataframe if it was created in computational retrieval
-            if computational_results and 'filtered_dataframe' in computational_results:
-                results['filtered_dataframe'] = computational_results['filtered_dataframe']
+            if results['computational_results'] and 'filtered_dataframe' in results['computational_results']:
+                results['filtered_dataframe'] = results['computational_results']['filtered_dataframe']
                 # Remove from computational_results to avoid duplication
-                del computational_results['filtered_dataframe']
+                del results['computational_results']['filtered_dataframe']
                 logger.debug(f"Extracted filtered_dataframe from computational_results")
             
             logger.debug(f"Computed {len(results['computational_results'])} aggregations")
@@ -1402,12 +1425,53 @@ Original query: "{original_query}"
                                         logger.warning(f"Could not convert employment for {occ}: {emp}", show_ui=False)
                                         per_occupation_dict[str(occ)] = 0.0
                                 
+                                # ARITHMETIC VALIDATION: Pre-compute verified values
+                                from app.utils.arithmetic_computation import ArithmeticComputationLayer
+                                
+                                computation_layer = ArithmeticComputationLayer()
+                                validator = computation_layer.get_validator()
+                                
+                                # Compute verified total
+                                total_employment_verified = validator.compute_sum(
+                                    data=list(matching_occ_employment.values()),
+                                    description="total_employment_pattern_matched_occupations",
+                                    unit='k'
+                                )
+                                
+                                # Compute verified count
+                                occupation_count_verified = validator.compute_count(
+                                    data=matching_occupations,
+                                    description="pattern_matched_occupations"
+                                )
+                                
+                                # Store both legacy and verified results
                                 computational_results['employment_for_matching_occupations'] = {
                                     'total_employment': total_employment,
                                     'occupations_count': len(matching_occupations),
                                     'per_occupation': per_occupation_dict,
                                     'note': 'Employment de-duplicated at occupation-industry level'
                                 }
+                                
+                                # CRITICAL: Only store at top level if NOT already set by occupation summary
+                                # Occupation summary results (32 occupations, 5018.44k) take precedence over
+                                # pattern matching subset (15 occupations, 2824.30k)
+                                if 'total_employment' not in computational_results:
+                                    computational_results['total_employment'] = total_employment
+                                    computational_results['total_occupations'] = len(matching_occupations)
+                                    computational_results['total_employment_verified'] = total_employment_verified
+                                    computational_results['occupation_count_verified'] = occupation_count_verified
+                                    computational_results['arithmetic_validator'] = validator
+                                    computational_results['arithmetic_metadata'] = {
+                                        'computation_complete': True,
+                                        'total_computations': len(validator.computed_values),
+                                        'all_values_verified': True,
+                                        'source': 'pattern_matching_employment'
+                                    }
+                                    logger.info(f"✅ ARITHMETIC VALIDATION (Pattern Match): Computed and verified {len(validator.computed_values)} values", show_ui=False)
+                                else:
+                                    # Occupation summary already set the total - don't overwrite
+                                    logger.info(f"📊 Pattern matching found subset: {total_employment:.2f}k across {len(matching_occupations)} occupations (not overwriting occupation summary total)", show_ui=False)
+                                
                                 logger.info(f"Employment for matching occupations: {total_employment:.2f} across {len(matching_occupations)} occupations", show_ui=False)
                             else:
                                 logger.warning(f"No employment data found for matching occupations", show_ui=False)
