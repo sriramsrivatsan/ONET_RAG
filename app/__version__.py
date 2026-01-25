@@ -2,36 +2,29 @@
 Labor RAG System Version Information
 =====================================
 
-Version 4.0.4 - Original Query for Pattern Matching
+Version 4.0.4.1 - Variable Scope Fix
 Release Date: January 25, 2026
 
+HOTFIX (v4.0.4.1):
+- Fixed: NameError: 'query_for_pattern_matching' is not defined
+- Location: Line 1275 in retriever.py (_computational_retrieval method)
+- Cause: Variable only exists in retrieve() method scope
+- Solution: Use 'query' parameter (already contains original query)
+- Impact: Fixes runtime error after successful pattern matching
+
 CRITICAL FIX (v4.0.4):
-- Fixed root cause: Pass ORIGINAL query to pattern matching
-- Modified retrieve() to accept both original and enhanced queries
-- Enhanced query used for vector search (better recall)
-- Original query used for pattern matching (accurate categorization)
-- Updated response_builder.py to pass original_query parameter
-- All detect_task_category() calls now use original query
-- v4.0.3 safeguard kept as secondary protection
-
-HOW IT WORKS:
-- User query → Enhanced with task-related terms
-- Enhanced query → Vector search (finds more relevant docs)
-- Original query → Pattern matching (accurate category detection)
-- Result: Best of both worlds!
-
-PREVIOUS FIXES (v4.0.3):
-- Detected enhanced query problem via diagnostic logging
-- Added safeguard to reject enhanced queries
-- Call tracking and query hash logging
+- Pass ORIGINAL query to pattern matching
+- Pass ENHANCED query to vector search  
+- Modified retrieve() to accept both queries
+- Updated response_builder.py to pass original_query
+- All pattern matching uses original query
 
 BACKWARD COMPATIBILITY:
 - All existing queries continue to work
 - API accepts optional original_query parameter
-- Defaults to query if original_query not provided
 """
 
-__version__ = "4.0.4"
+__version__ = "4.0.4.1"
 __release_date__ = "2025-01-24"
 __codename__ = "Genesis"  # First version with zero hardcoding
 
