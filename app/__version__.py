@@ -2,41 +2,40 @@
 Labor RAG System Version Information
 =====================================
 
-Version 4.5.0 - EXACT v3 Keyword Match (Added Plurals)
+Version 4.6.0 - Fixed Category Detection (Removed Ambiguous "document" Verb)
 Release Date: January 25, 2026
 
-CRITICAL FIX (v4.5.0):
-- Added explicit plural forms to match v3 EXACTLY
-- v3 had BOTH singular AND plural: document/documents, report/reports, etc.
-- v4.4.0 only had singulars, missing 94 rows despite substring matching
-- Impact: Lost final 13% of results (624 vs 718 rows)
+CRITICAL FIX (v4.6.0):
+- Removed "document" as a verb from research category
+- Root cause: "document" is both a VERB ("document findings") and a NOUN ("a document")
+- Impact: Queries about "digital document users" were incorrectly classified as research
+- Result: Lost 76% of data (169 vs 718 rows)
+
+ISSUE EXAMPLE:
+Query: "What industries are rich in digital document users?"
+- v3: Detected as document_creation → 718 rows, 5,018k employment ✓
+- v4.5.0: Detected as research → 169 rows, 2,830k employment ✗
+- v4.6.0: Detects as document_creation → ~718 rows, ~5,018k employment ✓
 
 ROOT CAUSE:
-- v3 keywords (25 total): document, documents, report, reports, spreadsheet, 
-  spreadsheets, file, files, drawing, drawings, plan, plans, specification,
-  specifications, presentation, presentations, program, programs, model, models,
-  diagram, chart, graph, blueprint, schematic
-- v4.4.0 keywords (20 total): Only singulars!
-- Even with substring matching, having explicit plurals ensures exact v3 behavior
+- research category had "document" in secondary verbs (meaning "document findings")
+- Query contains "digital document users" (meaning "users of documents")
+- Verb match (+1.0) beat keyword match (+0.8)
+- Research won incorrectly!
 
-COMPARISON:
-- v3 (hardcoded): 32 occupations, 718 rows, 5,018k employment
-- v4.4.0: 24 occupations, 624 rows, 3,021k employment ❌
-- v4.5.0: ~32 occupations, ~718 rows, ~5,018k employment ✅
-
-COMPLETE KEYWORD LIST (25 keywords, matching v3 exactly):
-document, documents, report, reports, spreadsheet, spreadsheets, file, files,
-drawing, drawings, plan, plans, specification, specifications, presentation,
-presentations, program, programs, model, models, diagram, chart, graph,
-blueprint, schematic
+SOLUTION:
+- Changed research verbs from: ["...", "document"]
+- To: ["...", "record"] (more specific, unambiguous)
+- "document" remains in document_creation as a keyword
+- Category detection now works correctly
 
 BACKWARD COMPATIBILITY:
-- All existing queries continue to work
-- EXACT v3 parity achieved
-- Results now match v3 perfectly
+- Research queries still work (use "record", "log", "note" for documenting)
+- Document creation queries now detected correctly
+- All v4.5.0 improvements maintained
 """
 
-__version__ = "4.5.0"
+__version__ = "4.6.0"
 __release_date__ = "2025-01-24"
 __codename__ = "Genesis"  # First version with zero hardcoding
 

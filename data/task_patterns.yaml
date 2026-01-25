@@ -299,7 +299,7 @@ task_categories:
     
     action_verbs:
       primary: ["research", "investigate", "study", "explore", "examine", "analyze"]
-      secondary: ["survey", "experiment", "test", "observe", "measure", "document"]
+      secondary: ["survey", "experiment", "test", "observe", "measure", "record"]  # Changed "document" to "record"
       exclude: []
     
     object_keywords:
