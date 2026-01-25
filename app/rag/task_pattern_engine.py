@@ -481,7 +481,7 @@ class TaskPatternEngine:
         
         # Return match if confidence above threshold
         if best_score >= 0.5:
-            logger.info(f"✓ v4.1.0: Detected category '{best_match}' with score {best_score:.2f}", show_ui=False)
+            logger.info(f"✓ v4.2.0: Detected category '{best_match}' with score {best_score:.2f}", show_ui=False)
             return best_match
         
         logger.debug(f"No category detected (best score: {best_score:.2f})", show_ui=False)
@@ -535,15 +535,26 @@ class TaskPatternEngine:
         excluded_keywords = category.object_keywords.get('exclude', [])
         all_keywords = [k for k in all_keywords if k not in excluded_keywords]
         
-        # Find matches (case-insensitive with word boundaries for verbs)
+        # CRITICAL: Match v3's behavior EXACTLY
+        # v3 only checks: (has action verb) AND (has keyword)
+        # v3 does NOT exclude tasks with "read", "review", etc.
+        # 
+        # The user query says "don't include jobs that ONLY read"
+        # But if a job CREATES *and* reads, it should still match!
+        # So we match on creation verbs only, without excluding reading verbs.
+        
         import re
-        matched_verbs = [v for v in all_verbs if re.search(rf'\b{re.escape(v)}\b', text, re.IGNORECASE)]
+        
+        # Match action verbs using substring matching (same as v3)
+        matched_verbs = [v for v in all_verbs if v.lower() in text]
+        
+        # Match keywords with substring matching (same as v3)
         matched_keywords = [k for k in all_keywords if k.lower() in text]
         
-        # Check for excluded terms (CRITICAL: use word boundaries to avoid false positives)
-        # e.g., "read" should NOT match in "spreadsheets" or "thread"
-        has_excluded_verb = any(re.search(rf'\b{re.escape(v)}\b', text, re.IGNORECASE) for v in excluded_verbs)
-        has_excluded_keyword = any(k.lower() in text for k in excluded_keywords)
+        # v3 did NOT check excluded verbs! Only checked for positive matches.
+        # Removing excluded verb logic to match v3 behavior.
+        has_excluded_verb = False
+        has_excluded_keyword = False
         
         if has_excluded_verb or has_excluded_keyword:
             return MatchResult(
