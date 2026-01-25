@@ -2,35 +2,36 @@
 Labor RAG System Version Information
 =====================================
 
-Version 4.0.3 - Enhanced Query Detection & Fix
+Version 4.0.4 - Original Query for Pattern Matching
 Release Date: January 25, 2026
 
-CRITICAL FIX (v4.0.3):
-- Detected root cause: Pattern matching runs on ENHANCED queries
-- Added safeguard to detect and reject enhanced queries
-- Enhanced queries contain appended text like "develop new concepts design creative"
-- Pattern matching now returns None if enhanced query detected
-- Added call tracking to detect multiple calls with different queries
-- Logs show exactly which query text is being analyzed
+CRITICAL FIX (v4.0.4):
+- Fixed root cause: Pass ORIGINAL query to pattern matching
+- Modified retrieve() to accept both original and enhanced queries
+- Enhanced query used for vector search (better recall)
+- Original query used for pattern matching (accurate categorization)
+- Updated response_builder.py to pass original_query parameter
+- All detect_task_category() calls now use original query
+- v4.0.3 safeguard kept as secondary protection
 
-DIAGNOSTIC FEATURES (v4.0.2.2):
-- Maximum diagnostic logging for phrase detection
-- Step-by-step negation checking logs
-- Context window visualization
-- Phrase position and substring logging
+HOW IT WORKS:
+- User query → Enhanced with task-related terms
+- Enhanced query → Vector search (finds more relevant docs)
+- Original query → Pattern matching (accurate category detection)
+- Result: Best of both worlds!
 
-CRITICAL FIXES (v4.0.2):
-- Fixed negation detection (customer service false positive)
-- Added verb inflection matching (creating → create)
-- Fixed word boundary matching (read in spreadsheets)
-- Enhanced logging for category detection
+PREVIOUS FIXES (v4.0.3):
+- Detected enhanced query problem via diagnostic logging
+- Added safeguard to reject enhanced queries
+- Call tracking and query hash logging
 
 BACKWARD COMPATIBILITY:
 - All existing queries continue to work
-- API unchanged
+- API accepts optional original_query parameter
+- Defaults to query if original_query not provided
 """
 
-__version__ = "4.0.3"
+__version__ = "4.0.4"
 __release_date__ = "2025-01-24"
 __codename__ = "Genesis"  # First version with zero hardcoding
 

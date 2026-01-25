@@ -445,8 +445,14 @@ class QueryProcessor:
             except Exception as e:
                 logger.warning(f"Query enhancement failed: {str(e)}", show_ui=False)
         
-        # Step 1: Retrieve relevant data (use enhanced query)
-        retrieval_results = self.retriever.retrieve(enhanced_query, k=k_results)
+        # Step 1: Retrieve relevant data
+        # Use enhanced query for vector search, but pass original for pattern matching
+        # CRITICAL: Pattern matching should ONLY run on original user queries
+        retrieval_results = self.retriever.retrieve(
+            enhanced_query, 
+            k=k_results,
+            original_query=query  # Pass original query for pattern matching
+        )
         
         # Add original query to results
         retrieval_results['original_query'] = query
