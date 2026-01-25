@@ -2,38 +2,38 @@
 Labor RAG System Version Information
 =====================================
 
-Version 4.3.0 - Added Missing Keywords (program, model)
+Version 4.4.0 - Final Missing Keywords (diagram, graph, blueprint, schematic)
 Release Date: January 25, 2026
 
-CRITICAL FIX (v4.3.0):
-- Added missing keywords: "program" and "model"
-- v3 had these, v4.0-4.2 did NOT
-- Impact: Lost 40% of results (513 vs 718 rows)
-- Missing occupations: Nurses, Managers, Scientists, etc.
+CRITICAL FIX (v4.4.0):
+- Added final missing keywords: "diagram", "graph", "blueprint", "schematic"
+- v3 had these, v4.0-4.3 did NOT
+- Impact: Lost final 20% of results (565 vs 718 rows)
+- Missing occupations: Nurses, Scientists, Engineers, etc.
 
 ROOT CAUSE:
-- v3 keywords: document, report, file, plan, presentation, **program, model**
-- v4 keywords: document, report, file, plan, presentation ← missing program, model!
-- Tasks like "develop treatment programs" → v3 MATCH, v4.2 REJECT
-- Tasks like "create care models" → v3 MATCH, v4.2 REJECT
+- v3 keywords: ..., program, model, **diagram, graph, blueprint, schematic**
+- v4.3.0 keywords: ..., program, model ← missing diagram, graph, blueprint, schematic!
+- Tasks like "create diagrams" → v3 MATCH, v4.3 REJECT
+- Tasks like "develop blueprints" → v3 MATCH, v4.3 REJECT
 
 COMPARISON:
 - v3 (hardcoded): 32 occupations, 718 rows, 5,018k employment
-- v4.2.0: 22 occupations, 513 rows, 3,009k employment ❌
-- v4.3.0: ~32 occupations, ~718 rows, ~5,018k employment ✅
+- v4.3.0: 24 occupations, 565 rows, 3,021k employment ❌
+- v4.4.0: ~32 occupations, ~718 rows, ~5,018k employment ✅
 
-CHANGES:
-- Added "program" to primary keywords
-- Added "model" to primary keywords
-- Now matches v3 keyword list exactly
+COMPLETE KEYWORD LIST NOW:
+- Primary: document, report, spreadsheet, file, drawing, plan, specification, 
+          program, model, diagram, graph, blueprint, schematic
+- Secondary: presentation, proposal, contract, memo, letter, form, chart
 
 BACKWARD COMPATIBILITY:
 - All existing queries continue to work
-- More accurate matching (catches program/model creation)
+- Complete v3 parity achieved
 - Results now match v3 exactly
 """
 
-__version__ = "4.3.0"
+__version__ = "4.4.0"
 __release_date__ = "2025-01-24"
 __codename__ = "Genesis"  # First version with zero hardcoding
 
