@@ -30,8 +30,8 @@ task_categories:
     
     # Object keywords that specify what is being created
     object_keywords:
-      primary: ["document", "report", "spreadsheet", "file", "drawing", "plan", "specification", "program", "model", "diagram", "graph", "blueprint", "schematic"]
-      secondary: ["presentation", "proposal", "contract", "memo", "letter", "form", "chart"]
+      primary: ["document", "documents", "report", "reports", "spreadsheet", "spreadsheets", "file", "files", "drawing", "drawings", "plan", "plans", "specification", "specifications", "presentation", "presentations", "program", "programs", "model", "models", "diagram", "chart", "graph", "blueprint", "schematic"]
+      secondary: []  # v3 had all keywords in one list
       exclude: ["email", "text message", "instant message"]  # Informal communication
     
     # Matching strategy

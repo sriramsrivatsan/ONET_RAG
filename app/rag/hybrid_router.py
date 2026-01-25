@@ -26,7 +26,7 @@ class HybridQueryRouter:
         
         # V4.0.0: Initialize pattern engine for entity detection
         self.pattern_engine = get_pattern_engine()
-        logger.info(f"✓ v4.4.0: HybridQueryRouter initialized with generic pattern engine", show_ui=False)
+        logger.info(f"✓ v4.5.0: HybridQueryRouter initialized with generic pattern engine", show_ui=False)
     
     def classify_query(self, query: str) -> Tuple[QueryIntent, Dict[str, Any]]:
         """
@@ -163,7 +163,7 @@ class HybridQueryRouter:
             # e.g., "document_creation" -> "document_creation"
             params['entity'] = detected_category
             params['entity_display_name'] = self.pattern_engine.get_category_config(detected_category).display_name
-            logger.info(f"✓ v4.4.0: Detected entity: {detected_category}", show_ui=False)
+            logger.info(f"✓ v4.5.0: Detected entity: {detected_category}", show_ui=False)
         
         # Detect task-level queries
         task_indicators = ['specific tasks', 'what tasks', 'which tasks', 'tasks that', 
