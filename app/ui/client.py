@@ -869,6 +869,9 @@ class ClientView:
                 
                 st.info(f"📊 Analyzing {len(filtered_df):,} filtered records (from previous query)")
                 
+                # CRITICAL FIX v4.7.0: Define query_lower before using it
+                query_lower = query.lower()
+                
                 # REMOVED: CSV export request detection
                 # User queries containing "CSV" should process normally and return RESPONSE data
                 # The filtered DATASET is always available via the "CSV Dataset" button below

@@ -2,40 +2,49 @@
 Labor RAG System Version Information
 =====================================
 
-Version 4.6.0 - Fixed Category Detection (Removed Ambiguous "document" Verb)
+Version 4.7.0 - Fixed Follow-up Query Processing (Missing query_lower)
 Release Date: January 25, 2026
 
-CRITICAL FIX (v4.6.0):
-- Removed "document" as a verb from research category
-- Root cause: "document" is both a VERB ("document findings") and a NOUN ("a document")
-- Impact: Queries about "digital document users" were incorrectly classified as research
-- Result: Lost 76% of data (169 vs 718 rows)
+CRITICAL FIX (v4.7.0):
+- Fixed NameError in follow-up query processing
+- Root cause: query_lower used without being defined in _process_followup_query()
+- Impact: ALL follow-up queries crashed with "name 'query_lower' is not defined"
 
-ISSUE EXAMPLE:
-Query: "What industries are rich in digital document users?"
-- v3: Detected as document_creation → 718 rows, 5,018k employment ✓
-- v4.5.0: Detected as research → 169 rows, 2,830k employment ✗
-- v4.6.0: Detects as document_creation → ~718 rows, ~5,018k employment ✓
+ISSUE:
+Follow-up queries failed with:
+```
+🚨 Follow-up query failed: name 'query_lower' is not defined
+❌ Follow-up query failed: name 'query_lower' is not defined
+```
 
 ROOT CAUSE:
-- research category had "document" in secondary verbs (meaning "document findings")
-- Query contains "digital document users" (meaning "users of documents")
-- Verb match (+1.0) beat keyword match (+0.8)
-- Research won incorrectly!
+In app/ui/client.py line 879, the code checked:
+```python
+if any(word in query_lower for word in ['total', 'sum', 'count', 'average', 'how many']):
+```
+
+But `query_lower` was NEVER defined in the `_process_followup_query` method!
+The method had parameter `query: str` but never created `query_lower = query.lower()`
 
 SOLUTION:
-- Changed research verbs from: ["...", "document"]
-- To: ["...", "record"] (more specific, unambiguous)
-- "document" remains in document_creation as a keyword
-- Category detection now works correctly
+Added line before usage:
+```python
+# CRITICAL FIX v4.7.0: Define query_lower before using it
+query_lower = query.lower()
+```
+
+IMPACT:
+- Initial queries worked fine (query_lower defined in retriever.retrieve())
+- Follow-up queries crashed (query_lower not defined in client._process_followup_query())
+- 100% of follow-up queries affected
 
 BACKWARD COMPATIBILITY:
-- Research queries still work (use "record", "log", "note" for documenting)
-- Document creation queries now detected correctly
-- All v4.5.0 improvements maintained
+- All v4.6.0 functionality maintained
+- Follow-up queries now work correctly
+- No impact on initial queries
 """
 
-__version__ = "4.6.0"
+__version__ = "4.7.0"
 __release_date__ = "2025-01-24"
 __codename__ = "Genesis"  # First version with zero hardcoding
 
