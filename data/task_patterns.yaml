@@ -30,7 +30,7 @@ task_categories:
     
     # Object keywords that specify what is being created
     object_keywords:
-      primary: ["document", "report", "spreadsheet", "file", "drawing", "plan", "specification"]
+      primary: ["document", "report", "spreadsheet", "file", "drawing", "plan", "specification", "program", "model"]
       secondary: ["presentation", "proposal", "contract", "memo", "letter", "form", "chart"]
       exclude: ["email", "text message", "instant message"]  # Informal communication
     
