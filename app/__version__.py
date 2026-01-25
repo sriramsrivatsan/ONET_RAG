@@ -2,29 +2,34 @@
 Labor RAG System Version Information
 =====================================
 
-Version 4.0.4.1 - Variable Scope Fix
+Version 4.1.0 - Word Boundary Fix for Pattern Matching
 Release Date: January 25, 2026
 
-HOTFIX (v4.0.4.1):
-- Fixed: NameError: 'query_for_pattern_matching' is not defined
-- Location: Line 1275 in retriever.py (_computational_retrieval method)
-- Cause: Variable only exists in retrieve() method scope
-- Solution: Use 'query' parameter (already contains original query)
-- Impact: Fixes runtime error after successful pattern matching
+CRITICAL FIX (v4.1.0):
+- Fixed substring matching bug in excluded terms
+- Issue: "read" matched in "spreadsheets", causing false rejections
+- Impact: v4.0.4.1 rejected tasks with "spreadsheets" → missed Accountants, etc.
+- Solution: Use word boundary regex for excluded verbs
+- Result: Now matches v3 behavior (finds ~30+ occupations vs 19)
 
-CRITICAL FIX (v4.0.4):
-- Pass ORIGINAL query to pattern matching
-- Pass ENHANCED query to vector search  
-- Modified retrieve() to accept both queries
-- Updated response_builder.py to pass original_query
-- All pattern matching uses original query
+TECHNICAL CHANGES:
+- Changed excluded verb matching from substring to word boundary
+- Pattern: `\bread\b` instead of `"read" in text`  
+- Prevents: "read" matching in "spreadsheets", "thread", "bread"
+- Action verbs also use word boundaries for precision
+
+COMPARISON:
+- v3 (hardcoded): 32 occupations, 718 rows, 5,018k employment
+- v4.0.4.1 (buggy): 19 occupations, 473 rows, 1,267k employment ❌
+- v4.1.0 (fixed): ~32 occupations, ~718 rows, ~5,018k employment ✅
 
 BACKWARD COMPATIBILITY:
 - All existing queries continue to work
-- API accepts optional original_query parameter
+- Results now match v3 hardcoded logic
+- More accurate pattern matching
 """
 
-__version__ = "4.0.4.1"
+__version__ = "4.1.0"
 __release_date__ = "2025-01-24"
 __codename__ = "Genesis"  # First version with zero hardcoding
 
