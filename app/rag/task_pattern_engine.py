@@ -176,20 +176,59 @@ class TaskPatternEngine:
         """
         Detect which task category the query is asking about.
         
+        CRITICAL: This method should ONLY receive the original user query,
+        NOT enhanced queries with appended text. Enhanced queries can contain
+        false positive phrase matches.
+        
         Args:
-            query: User's query string
+            query: User's ORIGINAL query string (not enhanced)
             
         Returns:
             Name of detected category or None
         """
         query_lower = query.lower()
         
-        # Log the query being analyzed
-        logger.info(f"🔍 CATEGORY DETECTION START", show_ui=False)
+        # SAFEGUARD: Detect if query has been enhanced with task descriptions
+        # Enhanced queries often contain phrases like "develop new concepts", "design creative solutions"
+        # that create false positive phrase matches
+        suspicious_phrases = [
+            "develop new concepts",
+            "design creative solutions", 
+            "design systems",
+            "implement solutions"
+        ]
+        
+        is_likely_enhanced = any(phrase in query_lower for phrase in suspicious_phrases)
+        
+        # Track calls to this method
+        if not hasattr(self, '_detection_call_count'):
+            self._detection_call_count = 0
+            self._query_hashes = []
+        self._detection_call_count += 1
+        current_hash = hash(query)
+        
+        # Log the query being analyzed with FULL TEXT
+        logger.info(f"🔍 CATEGORY DETECTION START (call #{self._detection_call_count})", show_ui=False)
         logger.info(f"   Query length: {len(query)} chars", show_ui=False)
-        logger.info(f"   Query preview: {query[:150]}...", show_ui=False)
-        logger.info(f"   Query hash: {hash(query)}", show_ui=False)  # To detect if same query
-        logger.info(f"   Last 50 chars: ...{query[-50:] if len(query) > 50 else query}", show_ui=False)
+        logger.info(f"   Query hash: {current_hash}", show_ui=False)
+        
+        # Check if this is a repeat call with same or different query
+        if current_hash in self._query_hashes:
+            logger.warning(f"   ⚠️  DUPLICATE CALL with same query!", show_ui=False)
+        else:
+            self._query_hashes.append(current_hash)
+            if len(self._query_hashes) > 1:
+                logger.warning(f"   ⚠️  MULTIPLE CALLS with DIFFERENT queries!", show_ui=False)
+                logger.warning(f"   Previous {len(self._query_hashes)-1} call(s) had different query text", show_ui=False)
+        logger.info(f"   First 150 chars: {query[:150]}...", show_ui=False)
+        logger.info(f"   Last 150 chars: ...{query[-150:] if len(query) > 150 else query}", show_ui=False)
+        
+        if is_likely_enhanced:
+            logger.error(f"🚨 ENHANCED QUERY DETECTED - SKIPPING PATTERN MATCHING!", show_ui=False)
+            logger.error(f"   This query appears to contain appended task descriptions", show_ui=False)
+            logger.error(f"   Pattern matching should ONLY run on original user queries", show_ui=False)
+            logger.error(f"   Returning None to avoid false positive matches", show_ui=False)
+            return None
         
         # Negation patterns to detect when keywords are mentioned in negative context
         negation_patterns = [
@@ -442,7 +481,7 @@ class TaskPatternEngine:
         
         # Return match if confidence above threshold
         if best_score >= 0.5:
-            logger.info(f"✓ v4.0.2.2: Detected category '{best_match}' with score {best_score:.2f}", show_ui=False)
+            logger.info(f"✓ v4.0.3: Detected category '{best_match}' with score {best_score:.2f}", show_ui=False)
             return best_match
         
         logger.debug(f"No category detected (best score: {best_score:.2f})", show_ui=False)
