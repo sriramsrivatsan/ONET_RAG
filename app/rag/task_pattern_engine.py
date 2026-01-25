@@ -12,11 +12,26 @@ import yaml
 import pandas as pd
 from typing import Dict, List, Any, Optional, Set, Tuple
 from pathlib import Path
-import logging
 from dataclasses import dataclass
 from functools import lru_cache
+import logging
 
-logger = logging.getLogger(__name__)
+# Use custom RAGLogger if available, otherwise use standard logger
+try:
+    from app.utils.logging import RAGLogger
+    logger = RAGLogger(__name__)
+except (ImportError, ModuleNotFoundError):
+    # Fallback to standard logger (for testing without Streamlit)
+    logger = logging.getLogger(__name__)
+    # Add show_ui parameter support for compatibility
+    original_info = logger.info
+    original_debug = logger.debug
+    original_warning = logger.warning
+    original_error = logger.error
+    logger.info = lambda msg, show_ui=False: original_info(msg)
+    logger.debug = lambda msg, show_ui=False: original_debug(msg)
+    logger.warning = lambda msg, show_ui=False: original_warning(msg)
+    logger.error = lambda msg, show_ui=False: original_error(msg)
 
 
 @dataclass
@@ -169,6 +184,11 @@ class TaskPatternEngine:
         """
         query_lower = query.lower()
         
+        # Log the query being analyzed
+        logger.info(f"🔍 CATEGORY DETECTION START", show_ui=False)
+        logger.info(f"   Query length: {len(query)} chars", show_ui=False)
+        logger.info(f"   Query preview: {query[:150]}...", show_ui=False)
+        
         # Negation patterns to detect when keywords are mentioned in negative context
         negation_patterns = [
             r"don'?t\s+include",
@@ -186,14 +206,20 @@ class TaskPatternEngine:
             r"not\s+(?:want|need|looking|interested)"
         ]
         
+        logger.info(f"   Using {len(negation_patterns)} negation patterns", show_ui=False)
+        
         # Check each category's keywords
         best_match = None
         best_score = 0.0
         scores_detail = {}  # For debugging
         
+        logger.info(f"   Evaluating {len(self.categories)} categories...", show_ui=False)
+        
         for category_name, category in self.categories.items():
             score = 0.0
             details = []
+            
+            logger.debug(f"      Checking category: {category_name}", show_ui=False)
             
             # Check if category name or display name in query
             category_phrase = category_name.replace('_', ' ')
@@ -209,6 +235,8 @@ class TaskPatternEngine:
                 phrase_to_check = category_phrase if category_phrase in query_lower else display_phrase
                 phrase_pos = query_lower.find(phrase_to_check)
                 
+                logger.debug(f"         Found phrase '{phrase_to_check}' at position {phrase_pos}", show_ui=False)
+                
                 # Check 200 characters before the phrase for negation (increased from 50)
                 context_start = max(0, phrase_pos - 200)
                 context = query_lower[context_start:phrase_pos + len(phrase_to_check)]
@@ -217,15 +245,20 @@ class TaskPatternEngine:
                 for neg_pattern in negation_patterns:
                     if re.search(neg_pattern, context):
                         is_negated = True
-                        details.append(f"NEGATED phrase match (context: ...{context[-30:]})")
+                        logger.info(f"         ⚠️  NEGATION DETECTED for '{phrase_to_check}'", show_ui=False)
+                        logger.info(f"             Pattern: {neg_pattern}", show_ui=False)
+                        logger.info(f"             Context: ...{context[-60:]}", show_ui=False)
+                        details.append(f"NEGATED phrase match (pattern: {neg_pattern})")
                         break
                 
                 if not is_negated:
                     score += 2.0  # Strong signal only if NOT negated
                     details.append(f"+2.0 phrase match '{phrase_to_check}'")
+                    logger.debug(f"         ✓ Phrase match: +2.0", show_ui=False)
                 else:
                     score -= 2.0  # Penalty for negated mentions
                     details.append(f"-2.0 negated phrase '{phrase_to_check}'")
+                    logger.debug(f"         ✗ Negated phrase: -2.0", show_ui=False)
             
             # Check for action verbs (any tier)
             all_verbs = (
@@ -236,6 +269,9 @@ class TaskPatternEngine:
             # Simple stemming: check if query contains verb or common inflections
             verb_matches_count = 0
             matched_verbs = []
+            
+            logger.debug(f"         Checking {len(all_verbs)} verbs", show_ui=False)
+            
             for verb in all_verbs:
                 verb_lower = verb.lower()
                 # Check exact match or common inflections
@@ -252,31 +288,41 @@ class TaskPatternEngine:
                 if any(pattern in query_lower for pattern in verb_patterns):
                     verb_matches_count += 1
                     matched_verbs.append(verb)
+                    found_pattern = [p for p in verb_patterns if p in query_lower][0]
+                    logger.debug(f"            ✓ Verb match: '{verb}' (found '{found_pattern}')", show_ui=False)
                     
             if verb_matches_count > 0:
                 verb_score = 1.0 + (0.3 * min(verb_matches_count - 1, 3))
                 score += verb_score
                 details.append(f"+{verb_score:.1f} verbs: {matched_verbs[:3]}")
+                logger.debug(f"         Verb total: +{verb_score:.1f} ({verb_matches_count} matches)", show_ui=False)
             
             # Check for object keywords (any tier)
             all_keywords = (
                 category.object_keywords.get('primary', []) +
                 category.object_keywords.get('secondary', [])
             )
+            
+            logger.debug(f"         Checking {len(all_keywords)} keywords", show_ui=False)
+            
             keyword_matches = sum(1 for kw in all_keywords if kw.lower() in query_lower)
             if keyword_matches > 0:
                 keyword_score = 0.8 + (0.3 * min(keyword_matches - 1, 3))
                 score += keyword_score
                 matched_kws = [k for k in all_keywords if k.lower() in query_lower]
                 details.append(f"+{keyword_score:.1f} keywords: {matched_kws[:3]}")
+                logger.debug(f"         Keyword total: +{keyword_score:.1f} ({keyword_matches} matches: {matched_kws[:5]})", show_ui=False)
             
             # Penalty for excluded terms (but not if they appear in negated context)
             excluded_verbs = category.action_verbs.get('exclude', [])
             excluded_keywords = category.object_keywords.get('exclude', [])
             
+            all_excluded = excluded_verbs + excluded_keywords
+            logger.debug(f"         Checking {len(all_excluded)} excluded terms", show_ui=False)
+            
             # Check if excluded terms appear, but ignore if in negated context
             excluded_found = []
-            for term in excluded_verbs + excluded_keywords:
+            for term in all_excluded:
                 term_lower = term.lower()
                 
                 # Use word boundary regex to match whole words only (avoid "read" in "spreadsheets")
@@ -285,6 +331,7 @@ class TaskPatternEngine:
                 matches = list(re.finditer(word_pattern, query_lower))
                 
                 if matches:
+                    logger.debug(f"            Found excluded term '{term}' ({len(matches)} occurrences)", show_ui=False)
                     # Check each occurrence - term is only excluded if at least one occurrence is NOT negated
                     has_non_negated_occurrence = False
                     for match in matches:
@@ -297,40 +344,59 @@ class TaskPatternEngine:
                         for neg_pattern in negation_patterns:
                             if re.search(neg_pattern, context):
                                 is_negated_term = True
+                                logger.debug(f"               ✓ Occurrence at {term_pos} is NEGATED", show_ui=False)
                                 break
                         
                         if not is_negated_term:
                             has_non_negated_occurrence = True
+                            logger.debug(f"               ✗ Occurrence at {term_pos} is NOT negated", show_ui=False)
                             break  # Found one non-negated occurrence, that's enough
                     
                     # Only add to excluded if we found a non-negated occurrence
                     if has_non_negated_occurrence:
                         excluded_found.append(term)
+                        logger.debug(f"            ✗ Excluded term '{term}' APPLIES (non-negated occurrence found)", show_ui=False)
             
             if excluded_found:
                 old_score = score
                 score *= 0.3  # Heavy penalty
                 details.append(f"×0.3 excluded terms: {excluded_found[:2]} (was {old_score:.1f})")
+                logger.debug(f"         Excluded penalty: ×0.3 for {excluded_found} (was {old_score:.1f}, now {score:.1f})", show_ui=False)
             
             # Store score details
             scores_detail[category_name] = {'score': score, 'details': details}
+            
+            # Log final score for this category
+            if score > 0.1 or category_name in ['document_creation', 'customer_service', 'design_creative']:
+                logger.info(f"      {category_name:20s}: {score:5.2f} - {', '.join(details)}", show_ui=False)
             
             # Require minimum combination for match
             min_score = 0.5
             if score >= min_score:
                 if score > best_score:
+                    logger.info(f"         🏆 NEW BEST: {category_name} ({score:.2f} > {best_score:.2f})", show_ui=False)
                     best_score = score
                     best_match = category_name
         
         # Log all category scores for debugging
-        logger.info(f"✓ v4.0.0: Category scoring complete", show_ui=False)
-        for cat_name, info in sorted(scores_detail.items(), key=lambda x: x[1]['score'], reverse=True):
-            if info['score'] > 0.1 or cat_name in [best_match, 'document_creation', 'customer_service']:
-                logger.info(f"  {cat_name}: {info['score']:.2f} - {', '.join(info['details'])}", show_ui=False)
+        logger.info(f"🔍 CATEGORY DETECTION SUMMARY", show_ui=False)
+        logger.info(f"   ─────────────────────────────────────────────────────────────", show_ui=False)
+        
+        # Sort by score and show top 5
+        sorted_categories = sorted(scores_detail.items(), key=lambda x: x[1]['score'], reverse=True)
+        for i, (cat_name, info) in enumerate(sorted_categories[:5], 1):
+            marker = "🏆" if cat_name == best_match else "  "
+            logger.info(f"   {marker} {i}. {cat_name:25s}: {info['score']:6.2f}", show_ui=False)
+            for detail in info['details']:
+                logger.info(f"      • {detail}", show_ui=False)
+        
+        logger.info(f"   ─────────────────────────────────────────────────────────────", show_ui=False)
+        logger.info(f"   Best match: {best_match or 'None'} (score: {best_score:.2f}, threshold: 0.5)", show_ui=False)
+        logger.info(f"🔍 CATEGORY DETECTION END", show_ui=False)
         
         # Return match if confidence above threshold
         if best_score >= 0.5:
-            logger.info(f"✓ v4.0.0: Detected category '{best_match}' with score {best_score:.2f}", show_ui=False)
+            logger.info(f"✓ v4.0.2: Detected category '{best_match}' with score {best_score:.2f}", show_ui=False)
             return best_match
         
         logger.debug(f"No category detected (best score: {best_score:.2f})", show_ui=False)
