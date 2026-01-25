@@ -2,33 +2,40 @@
 Labor RAG System Version Information
 =====================================
 
-Version 4.0.2 - Pattern Matching Bug Fixes
-Release Date: January 24, 2025
+Version 4.0.2.2 - Maximum Diagnostics
+Release Date: January 25, 2025
 
-CRITICAL BUG FIXES:
+DIAGNOSTIC ENHANCEMENTS (v4.0.2.2):
+- Added explicit logging for customer_service, design_creative, document_creation categories
+- Log when phrases ARE found vs NOT found
+- Log negation checking process step-by-step
+- Log context windows for negation detection
+- Log final negation results (will add/subtract points)
+- Changed debug logs to info logs for visibility
+
+PREVIOUS ENHANCEMENTS (v4.0.2.1):
+- Added query length and hash logging
+- Added phrase position context logging  
+- Added last 50 chars of query logging
+- Added phrase-only match penalty
+
+CRITICAL FIXES (v4.0.2):
 - Fixed negation detection (customer service false positive)
 - Added verb inflection matching (creating → create)
 - Fixed word boundary matching (read in spreadsheets)
+- Enhanced logging for category detection
 
 PREVIOUS FIXES:
 - v4.0.1.1: Fixed query variable scope error in hybrid_router.py
 - v4.0.1: Fixed orphaned code block in retriever.py (103 lines removed)
 - v4.0.0: Generic task pattern framework
 
-MAJOR CHANGES (v4.0.0):
-- Removed ALL hardcoded task patterns
-- Implemented generic TaskPatternEngine
-- Configuration-driven pattern matching
-- Infinite extensibility via YAML config
-- Zero code changes needed for new task categories
-
 BACKWARD COMPATIBILITY:
 - All existing queries continue to work
-- Existing document creation queries automatically use new engine
 - API unchanged
 """
 
-__version__ = "4.0.2"
+__version__ = "4.0.2.2"
 __release_date__ = "2025-01-24"
 __codename__ = "Genesis"  # First version with zero hardcoding
 

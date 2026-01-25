@@ -188,6 +188,8 @@ class TaskPatternEngine:
         logger.info(f"🔍 CATEGORY DETECTION START", show_ui=False)
         logger.info(f"   Query length: {len(query)} chars", show_ui=False)
         logger.info(f"   Query preview: {query[:150]}...", show_ui=False)
+        logger.info(f"   Query hash: {hash(query)}", show_ui=False)  # To detect if same query
+        logger.info(f"   Last 50 chars: ...{query[-50:] if len(query) > 50 else query}", show_ui=False)
         
         # Negation patterns to detect when keywords are mentioned in negative context
         negation_patterns = [
@@ -221,9 +223,17 @@ class TaskPatternEngine:
             
             logger.debug(f"      Checking category: {category_name}", show_ui=False)
             
+            # Special logging for key categories
+            if category_name in ['customer_service', 'design_creative', 'document_creation']:
+                logger.info(f"      🔍 Evaluating: {category_name}", show_ui=False)
+            
             # Check if category name or display name in query
             category_phrase = category_name.replace('_', ' ')
             display_phrase = category.display_name.lower()
+            
+            # Log what we're searching for
+            if category_name in ['customer_service', 'design_creative', 'document_creation']:
+                logger.info(f"         Looking for: '{category_phrase}' OR '{display_phrase}'", show_ui=False)
             
             # Check for negation context around category mentions
             import re
@@ -235,11 +245,21 @@ class TaskPatternEngine:
                 phrase_to_check = category_phrase if category_phrase in query_lower else display_phrase
                 phrase_pos = query_lower.find(phrase_to_check)
                 
-                logger.debug(f"         Found phrase '{phrase_to_check}' at position {phrase_pos}", show_ui=False)
+                logger.info(f"         Found phrase '{phrase_to_check}' at position {phrase_pos}", show_ui=False)
+                logger.info(f"         Query substring at position: '{query_lower[max(0,phrase_pos-20):phrase_pos+len(phrase_to_check)+20]}'", show_ui=False)
+                
+                # CRITICAL: Log negation checking for key categories
+                if category_name in ['customer_service', 'design_creative', 'document_creation']:
+                    logger.info(f"         🔎 CHECKING NEGATION for '{category_name}'", show_ui=False)
                 
                 # Check 200 characters before the phrase for negation (increased from 50)
                 context_start = max(0, phrase_pos - 200)
                 context = query_lower[context_start:phrase_pos + len(phrase_to_check)]
+                
+                # Log context for key categories
+                if category_name in ['customer_service', 'design_creative', 'document_creation']:
+                    logger.info(f"            Context window: chars {context_start} to {phrase_pos + len(phrase_to_check)}", show_ui=False)
+                    logger.info(f"            Last 80 chars of context: ...{context[-80:]}", show_ui=False)
                 
                 # Check if any negation pattern appears in context
                 for neg_pattern in negation_patterns:
@@ -251,6 +271,13 @@ class TaskPatternEngine:
                         details.append(f"NEGATED phrase match (pattern: {neg_pattern})")
                         break
                 
+                # Log result of negation check for key categories
+                if category_name in ['customer_service', 'design_creative', 'document_creation']:
+                    if is_negated:
+                        logger.info(f"         ✗ Result: NEGATED (will subtract 2.0 points)", show_ui=False)
+                    else:
+                        logger.info(f"         ✓ Result: NOT NEGATED (will add 2.0 points)", show_ui=False)
+                
                 if not is_negated:
                     score += 2.0  # Strong signal only if NOT negated
                     details.append(f"+2.0 phrase match '{phrase_to_check}'")
@@ -259,6 +286,10 @@ class TaskPatternEngine:
                     score -= 2.0  # Penalty for negated mentions
                     details.append(f"-2.0 negated phrase '{phrase_to_check}'")
                     logger.debug(f"         ✗ Negated phrase: -2.0", show_ui=False)
+            else:
+                # Phrase not found in query
+                if category_name in ['customer_service', 'design_creative', 'document_creation']:
+                    logger.info(f"         ✗ Phrase NOT found in query", show_ui=False)
             
             # Check for action verbs (any tier)
             all_verbs = (
@@ -366,6 +397,21 @@ class TaskPatternEngine:
             # Store score details
             scores_detail[category_name] = {'score': score, 'details': details}
             
+            # CRITICAL FIX: Phrase matches alone aren't reliable
+            # Require at least SOME verb or keyword matches for credibility
+            # This prevents false positives from phrase matches in enhanced/modified queries
+            has_phrase_match = (category_phrase in query_lower or display_phrase in query_lower)
+            has_verb_matches = verb_matches_count > 0
+            has_keyword_matches = keyword_matches > 0
+            
+            # If ONLY phrase match (no verbs or keywords), reduce confidence significantly
+            if has_phrase_match and not has_verb_matches and not has_keyword_matches:
+                old_score = score
+                score *= 0.1  # Heavy penalty - phrase match alone is not reliable
+                details.append(f"⚠️  Phrase-only match (no verbs/keywords): reduced from {old_score:.1f}")
+                logger.warning(f"         ⚠️  Category '{category_name}' has phrase match but NO verb/keyword support - reducing score", show_ui=False)
+                scores_detail[category_name] = {'score': score, 'details': details}
+            
             # Log final score for this category
             if score > 0.1 or category_name in ['document_creation', 'customer_service', 'design_creative']:
                 logger.info(f"      {category_name:20s}: {score:5.2f} - {', '.join(details)}", show_ui=False)
@@ -396,7 +442,7 @@ class TaskPatternEngine:
         
         # Return match if confidence above threshold
         if best_score >= 0.5:
-            logger.info(f"✓ v4.0.2: Detected category '{best_match}' with score {best_score:.2f}", show_ui=False)
+            logger.info(f"✓ v4.0.2.2: Detected category '{best_match}' with score {best_score:.2f}", show_ui=False)
             return best_match
         
         logger.debug(f"No category detected (best score: {best_score:.2f})", show_ui=False)
