@@ -606,8 +606,10 @@ Your responses should be:
             if 'grouped' in computational_results:
                 context_parts.append("\nGrouped Analysis:")
                 for group_type, values in computational_results['grouped'].items():
-                    context_parts.append(f"\n{group_type}:")
-                    for name, val in list(values.items())[:10]:  # Top 10
+                    total_items = len(values)
+                    context_parts.append(f"\n{group_type} ({total_items} items):")
+                    # v4.8.6 FIX: Show ALL items (removed [:10] truncation)
+                    for name, val in values.items():
                         context_parts.append(f"  - {name}: {val:,.2f}")
             
             # Top N
@@ -631,9 +633,10 @@ Your responses should be:
                 context_parts.append("(Showing percentage of industry workforce with this attribute)\n")
                 
                 industry_list = prop_data.get('industry_proportions', [])
+                total_industries = len(industry_list)
                 
-                # Show top 15 industries
-                for i, industry_info in enumerate(industry_list[:15], 1):
+                # v4.8.6 FIX: Show ALL industries (removed [:15] truncation)
+                for i, industry_info in enumerate(industry_list, 1):
                     industry = industry_info.get('industry', 'Unknown')
                     matching = industry_info.get('matching_employment', 0)
                     total = industry_info.get('total_employment', 0)
@@ -652,11 +655,12 @@ Your responses should be:
                         f"   - Proportion: {proportion:.1f}%"
                     )
                 
-                context_parts.append("\n⚠️ IMPORTANT FOR YOUR RESPONSE:")
+                context_parts.append(f"\n⚠️ CRITICAL INSTRUCTIONS FOR YOUR RESPONSE:")
                 context_parts.append("- Present this as a RANKED TABLE of industries")
                 context_parts.append("- Show: Industry | Matching Workers | Total Workers | Percentage")
                 context_parts.append("- Order by percentage (highest to lowest)")
-                context_parts.append("- Include at least top 10 industries")
+                context_parts.append(f"- ⚠️ SHOW ALL {total_industries} INDUSTRIES IN THE TABLE (NO TRUNCATION)")
+                context_parts.append("- DO NOT abbreviate or truncate the table - user expects to see complete data")
                 context_parts.append("- DO NOT show individual task descriptions")
                 context_parts.append("- This is INDUSTRY-LEVEL analysis, not task-level")
             
@@ -684,8 +688,11 @@ Your responses should be:
                     context_parts.append("")
                 
                 if 'by_occupation' in time_data and time_data['by_occupation']:
-                    context_parts.append("📋 TIME BY OCCUPATION (Top 10):")
-                    for i, occ_data in enumerate(time_data['by_occupation'][:10], 1):
+                    by_occ_data = time_data['by_occupation']
+                    total_occupations = len(by_occ_data)
+                    context_parts.append(f"📋 TIME BY OCCUPATION (All {total_occupations} occupations):")
+                    # v4.8.6 FIX: Show ALL occupations (removed [:10] truncation)
+                    for i, occ_data in enumerate(by_occ_data, 1):
                         occ_name = occ_data.get('ONET job title', 'Unknown')
                         hours = occ_data.get('Hours per week spent on task', 0)
                         context_parts.append(f"{i}. {occ_name}: {hours:.1f} hours/week average")
@@ -719,8 +726,10 @@ Your responses should be:
                         context_parts.append(f"   (approximately {hours/1_000_000:.2f} million hours)")
                     context_parts.append("")
                 
-                context_parts.append("🏆 TOP OCCUPATIONS BY SAVINGS:")
-                for i, occ_data in enumerate(savings_data[:10], 1):
+                total_savings_occupations = len(savings_data)
+                context_parts.append(f"🏆 OCCUPATIONS BY SAVINGS (All {total_savings_occupations} occupations):")
+                # v4.8.6 FIX: Show ALL occupations (removed [:10] truncation)
+                for i, occ_data in enumerate(savings_data, 1):
                     occ_name = occ_data.get('Occupation', 'Unknown')
                     time_saved = occ_data.get('Hours Saved/Worker', 0)
                     total_hours = occ_data.get('Total Hours Saved/Week', 0)
@@ -736,6 +745,7 @@ Your responses should be:
                         context_parts.append(f"   - Annual savings: ${annual_savings:,.2f}")
                 
                 context_parts.append("")
+                context_parts.append("⚠️ CRITICAL: Show ALL occupations in your response table (no truncation)")
             
             # Skill Analysis (from data dictionary enrichment)
             if 'skill_analysis' in computational_results:
@@ -769,8 +779,11 @@ Your responses should be:
                             context_parts.append(f"  - {occupation}: {skill_count} distinct skills")
                 
                 if 'industries_by_avg_skills' in skill_data:
-                    context_parts.append(f"\nIndustries by Average Skill Requirements:")
-                    for industry, avg_skills in list(skill_data['industries_by_avg_skills'].items())[:10]:
+                    industries_list = list(skill_data['industries_by_avg_skills'].items())
+                    total_industries_skills = len(industries_list)
+                    context_parts.append(f"\nIndustries by Average Skill Requirements ({total_industries_skills} industries):")
+                    # v4.8.6 FIX: Show ALL industries (removed [:10] truncation)
+                    for industry, avg_skills in industries_list:
                         try:
                             avg_val = float(avg_skills) if avg_skills is not None else 0.0
                             context_parts.append(f"  - {industry}: {avg_val:.1f} avg skills")
@@ -828,8 +841,11 @@ Your responses should be:
                             context_parts.append(f"  - {occupation}: {task_count} tasks")
                 
                 if 'top_industries_by_task_count' in task_data:
-                    context_parts.append(f"\nTop Industries by Total Task Count:")
-                    for industry, task_count in list(task_data['top_industries_by_task_count'].items())[:10]:
+                    industries_task_list = list(task_data['top_industries_by_task_count'].items())
+                    total_task_industries = len(industries_task_list)
+                    context_parts.append(f"\nIndustries by Total Task Count ({total_task_industries} industries):")
+                    # v4.8.6 FIX: Show ALL industries (removed [:10] truncation)
+                    for industry, task_count in industries_task_list:
                         try:
                             count = int(task_count)
                             context_parts.append(f"  - {industry}: {count:,} tasks")
