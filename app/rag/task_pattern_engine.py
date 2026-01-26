@@ -481,7 +481,7 @@ class TaskPatternEngine:
         
         # Return match if confidence above threshold
         if best_score >= 0.5:
-            logger.info(f"✓ v4.8.6: Detected category '{best_match}' with score {best_score:.2f}", show_ui=False)
+            logger.info(f"✓ v4.8.7: Detected category '{best_match}' with score {best_score:.2f}", show_ui=False)
             return best_match
         
         logger.debug(f"No category detected (best score: {best_score:.2f})", show_ui=False)

@@ -1,5 +1,5 @@
 """
-Universal CSV Generator for Labor RAG v4.8.5
+Universal CSV Generator for Labor RAG v4.8.7
 Generates CSV for ANY query response using 3-tier strategy
 """
 import pandas as pd
@@ -341,10 +341,44 @@ class UniversalCSVGenerator:
         return None
     
     def _extract_time_analysis(self, data: Any) -> Optional[pd.DataFrame]:
-        """Extract time analysis data"""
+        """
+        Extract time analysis data
+        
+        Time analysis structure:
+        {
+            'overall': {...},  # Aggregate stats
+            'by_occupation': [...],  # List of per-occupation data
+            'by_occupation_with_totals': [...]  # List with totals
+        }
+        
+        For CSV, we want the by_occupation list as a multi-row DataFrame
+        """
         if isinstance(data, dict):
-            # Convert dict to single-row DataFrame
-            return pd.DataFrame([data])
+            # v4.8.7 FIX: Extract by_occupation list for proper CSV
+            if 'by_occupation' in data:
+                by_occ_data = data['by_occupation']
+                if isinstance(by_occ_data, list) and len(by_occ_data) > 0:
+                    # Convert list of occupation dicts to DataFrame
+                    return pd.DataFrame(by_occ_data)
+            
+            # Fallback: try by_occupation_with_totals
+            if 'by_occupation_with_totals' in data:
+                by_occ_totals = data['by_occupation_with_totals']
+                if isinstance(by_occ_totals, list) and len(by_occ_totals) > 0:
+                    return pd.DataFrame(by_occ_totals)
+            
+            # Last resort: if it's a flat dict, convert to single row
+            # (This would be unusual for time_analysis)
+            if all(not isinstance(v, (dict, list)) for v in data.values()):
+                return pd.DataFrame([data])
+            
+            # If dict has nested structures but no by_occupation, can't convert
+            logger.warning(
+                "time_analysis dict has no by_occupation data - cannot create CSV",
+                show_ui=False
+            )
+            return None
+            
         elif isinstance(data, pd.DataFrame):
             return data
         elif isinstance(data, list):
