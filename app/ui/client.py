@@ -498,29 +498,26 @@ class ClientView:
         elif 'industry_employment' in computational_results:
             result_csv_df = computational_results['industry_employment']
         
-        # Display inline result CSV download if available
-        if result_csv_df is not None and isinstance(result_csv_df, pd.DataFrame) and not result_csv_df.empty:
-            query_counter = st.session_state.get('query_counter', 1)
-            self._display_inline_result_csv(result_csv_df, query_counter)
+        # NEW v4.8.5: ALWAYS display CSV download for ALL queries
+        # Removed conditional logic - CSV is now universal
         
-        # Display CSV if available
-        if response.get('csv_data') is not None:
-            st.markdown("---")
-            st.subheader("📥 Exportable Data")
-            
-            csv_df = response['csv_data']
-            st.dataframe(csv_df)
-            
-            # Download button
-            csv_buffer = StringIO()
-            csv_df.to_csv(csv_buffer, index=False)
-            csv_str = csv_buffer.getvalue()
-            
-            st.download_button(
-                label="⬇️ Download CSV",
-                data=csv_str,
-                file_name="labor_market_analysis.csv",
-                mime="text/csv"
+        csv_data = response.get('csv_data')
+        query_counter = st.session_state.get('query_counter', 1)
+        
+        if csv_data is None:
+            # This should NEVER happen with v4.8.5 universal CSV
+            logger.error("❌ BUG v4.8.5: csv_data is None despite universal generation!", show_ui=False)
+            st.error("⚠️ CSV download unavailable (system error - please report this bug)")
+        elif isinstance(csv_data, pd.DataFrame) and csv_data.empty:
+            # This should also never happen
+            logger.error("❌ BUG v4.8.5: csv_data is empty DataFrame!", show_ui=False)
+            st.warning("⚠️ CSV has no data")
+        else:
+            # Show inline CSV download - ALWAYS for v4.8.5
+            self._display_inline_result_csv(csv_data, query_counter)
+            logger.info(
+                f"✅ v4.8.5: CSV download displayed - {len(csv_data)} rows × {len(csv_data.columns)} cols",
+                show_ui=False
             )
         
         # Show debug info if requested
@@ -1062,30 +1059,91 @@ class ClientView:
         )
     
     def _display_inline_result_csv(self, result_df: pd.DataFrame, query_number: int):
-        """Display inline CSV download icon for result data only"""
+        """
+        Display inline CSV download with preview functionality
+        NEW v4.8.5: Enhanced UI with preview, row/column count, file size
+        NOW UNIVERSAL for ALL queries
+        """
+        # Prepare CSV data
         csv_buffer = StringIO()
         result_df.to_csv(csv_buffer, index=False)
         csv_str = csv_buffer.getvalue()
         
+        # Filename with query number
         filename = f"query{query_number}.csv"
         
-        # Large download icon inline with response
+        # Calculate file size
+        file_size_kb = len(csv_str) / 1024
+        
+        # Display section
         st.markdown("---")
-        col1, col2 = st.columns([0.8, 0.2])
+        
+        # Create columns for layout
+        col1, col2, col3 = st.columns([0.55, 0.25, 0.2])
         
         with col1:
-            st.markdown("**📥 Download query results as CSV**")
+            # Info about CSV
+            st.markdown(
+                f"**📥 Query Results CSV**  \n"
+                f"<small>{len(result_df):,} rows × {len(result_df.columns)} columns · {file_size_kb:.1f} KB</small>",
+                unsafe_allow_html=True
+            )
         
         with col2:
+            # Preview toggle button
+            preview_key = f"preview_csv_{query_number}"
+            if st.button(
+                "👁️ Preview Data",
+                key=preview_key,
+                help="Show/hide CSV data preview",
+                use_container_width=True
+            ):
+                # Toggle preview state
+                session_key = f'show_csv_preview_{query_number}'
+                st.session_state[session_key] = not st.session_state.get(session_key, False)
+        
+        with col3:
+            # Download button
             st.download_button(
-                label="📥",
+                label="📥 Download",
                 data=csv_str,
                 file_name=filename,
                 mime="text/csv",
                 key=f"download_result_query_{query_number}",
-                help=f"Download these {len(result_df)} results as {filename}",
+                help=f"Download as {filename}",
                 use_container_width=True
             )
+        
+        # Show preview if toggled on
+        if st.session_state.get(f'show_csv_preview_{query_number}', False):
+            with st.expander("📊 CSV Data Preview", expanded=True):
+                # Show first 100 rows
+                preview_df = result_df.head(100)
+                
+                st.dataframe(
+                    preview_df,
+                    use_container_width=True,
+                    height=400  # Fixed height with scroll
+                )
+                
+                # Info about truncation
+                if len(result_df) > 100:
+                    st.info(
+                        f"📌 Showing first 100 of {len(result_df):,} rows. "
+                        f"Download CSV to see all data."
+                    )
+                
+                # Quick stats
+                with st.container():
+                    stat_cols = st.columns(4)
+                    with stat_cols[0]:
+                        st.metric("Total Rows", f"{len(result_df):,}")
+                    with stat_cols[1]:
+                        st.metric("Columns", len(result_df.columns))
+                    with stat_cols[2]:
+                        st.metric("File Size", f"{file_size_kb:.1f} KB")
+                    with stat_cols[3]:
+                        st.metric("Format", "CSV")
     
     def _process_enhanced_rag(self):
         """Process enhanced RAG with external data (stores in session state)"""

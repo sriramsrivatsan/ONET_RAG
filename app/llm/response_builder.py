@@ -400,6 +400,11 @@ class QueryProcessor:
         self.dataframe = dataframe
         self.dictionary = dictionary
         
+        # NEW v4.8.5: Initialize universal CSV generator
+        from app.llm.csv_generator import UniversalCSVGenerator
+        self.csv_generator = UniversalCSVGenerator()
+        logger.info("✓ v4.8.5: Universal CSV generator initialized", show_ui=False)
+        
         # Load dictionary if not provided
         if self.dictionary is None:
             try:
@@ -469,50 +474,34 @@ class QueryProcessor:
             routing_info=routing_info
         )
         
-        # Step 4: Generate CSV data
-        csv_data = None
+        # Step 4: Generate CSV data - NEW v4.8.5: UNIVERSAL for ALL queries
+        # OLD: Conditional logic, csv_data was None for most queries
+        # NEW: Always generate CSV using 3-tier strategy
         
-        # Check if query requests industry grouping
-        query_lower = query.lower()
-        query_wants_industry = (
-            'by industry' in query_lower or 
-            'per industry' in query_lower or
-            ('csv' in query_lower and 'industry' in query_lower and 'industries' in query_lower)
+        csv_data = self.csv_generator.generate(
+            query=query,
+            semantic_results=retrieval_results.get('semantic_results', []),
+            computational_results=retrieval_results.get('computational_results', {}),
+            routing_info=routing_info
         )
         
-        # Check if query wants savings analysis
-        query_wants_savings = any(phrase in query_lower for phrase in [
-            'saving', 'save', 'roi', 'dollar', 'cost'
-        ])
+        # Validate CSV was generated (should NEVER be None with fallback)
+        if csv_data is None or csv_data.empty:
+            logger.error(
+                "⚠️ BUG: CSV generation returned None/empty - this should not happen with fallback!",
+                show_ui=False
+            )
+            # Emergency fallback
+            csv_data = pd.DataFrame({
+                'Query': [query],
+                'Error': ['CSV generation failed unexpectedly'],
+                'Timestamp': [pd.Timestamp.now().isoformat()]
+            })
         
-        # Priority 1: Savings analysis (if requested)
-        if query_wants_savings and retrieval_results.get('computational_results', {}).get('savings_analysis'):
-            savings_df = pd.DataFrame(retrieval_results['computational_results']['savings_analysis'])
-            csv_data = savings_df
-            logger.info(f"Using savings_analysis for CSV ({len(csv_data)} occupations)", show_ui=False)
-        # Priority 2: Industry employment
-        elif query_wants_industry:
-            if retrieval_results.get('computational_results', {}).get('industry_employment') is not None:
-                csv_data = retrieval_results['computational_results']['industry_employment']
-                logger.info(f"Using industry_employment for CSV ({len(csv_data)} industries)", show_ui=False)
-            elif retrieval_results.get('computational_results', {}).get('industry_proportions') is not None:
-                ind_props = retrieval_results['computational_results']['industry_proportions']
-                if 'industries' in ind_props:
-                    csv_data = pd.DataFrame(ind_props['industries'])
-                    logger.info(f"Using industry_proportions for CSV ({len(csv_data)} industries)", show_ui=False)
-        # Priority 3: Occupation employment
-        else:
-            if retrieval_results.get('computational_results', {}).get('occupation_employment') is not None:
-                csv_data = retrieval_results['computational_results']['occupation_employment']
-                logger.info(f"Using occupation_employment for CSV ({len(csv_data)} occupations)", show_ui=False)
-            elif routing_info.get('strategy', {}).get('export_csv'):
-                filtered_df = retrieval_results.get('filtered_dataframe')
-                if filtered_df is not None and not filtered_df.empty:
-                    csv_data = self.response_builder.generate_csv_data(
-                        query=query,
-                        dataframe=filtered_df,
-                        routing_info=routing_info
-                    )
+        logger.info(
+            f"✅ v4.8.5: CSV ready - {len(csv_data)} rows × {len(csv_data.columns)} columns",
+            show_ui=False
+        )
         
         # Package response
         response = {
