@@ -1,5 +1,5 @@
 """
-Universal CSV Generator for Labor RAG v4.9.0
+Universal CSV Generator for Labor RAG v4.9.1
 Generates CSV for ANY query response using 3-tier strategy
 """
 import pandas as pd
@@ -50,7 +50,7 @@ class UniversalCSVGenerator:
         logger.info(f"🔄 Generating CSV for query: {query[:50]}...", show_ui=False)
         
         # Try Tier 1: Computational results (preferred)
-        csv_df = self._tier1_computational(computational_results)
+        csv_df = self._tier1_computational(computational_results, semantic_results)
         if csv_df is not None and not csv_df.empty:
             self.generation_stats['tier1_count'] += 1
             self.generation_stats['total_generated'] += 1
@@ -85,12 +85,14 @@ class UniversalCSVGenerator:
     
     def _tier1_computational(
         self,
-        computational_results: Dict[str, Any]
+        computational_results: Dict[str, Any],
+        semantic_results: List[Dict[str, Any]] = None
     ) -> Optional[pd.DataFrame]:
         """
         Extract CSV from computational results
         
         Priority order:
+        0. task_details (v4.9.1: for task queries)
         1. savings_analysis (highest value - automation analysis)
         2. occupation_employment (occupation summaries)
         3. industry_employment (industry analysis)
@@ -104,20 +106,21 @@ class UniversalCSVGenerator:
             logger.debug("No computational results available", show_ui=False)
             return None
         
-        # v4.9.0: Check if this is a task details query (semantic results with task data)
+        # v4.9.1 FIX: Check if this is a task details query
         # Task queries have semantic_results with task metadata and filtered_dataframe
         is_task_query = (
             'total_tasks' in computational_results and
-            'semantic_results' in retrieval_results and
-            'filtered_dataframe' in retrieval_results and
-            isinstance(retrieval_results.get('filtered_dataframe'), pd.DataFrame)
+            semantic_results is not None and
+            len(semantic_results) > 0 and
+            'filtered_dataframe' in computational_results and
+            isinstance(computational_results.get('filtered_dataframe'), pd.DataFrame)
         )
         
         if is_task_query:
             # Extract task details from filtered_dataframe
             df = self._extract_task_details_from_dataframe(
-                retrieval_results['filtered_dataframe'],
-                retrieval_results.get('semantic_results', [])
+                computational_results['filtered_dataframe'],
+                semantic_results
             )
             if df is not None and not df.empty:
                 logger.info(
@@ -318,7 +321,7 @@ class UniversalCSVGenerator:
         """
         Extract task details from filtered dataframe for CSV export
         
-        v4.9.0: When user asks about "workers that create X", they want to see
+        v4.9.1: When user asks about "workers that create X", they want to see
         WHAT workers do (tasks), not just job titles (occupations).
         
         Args:
@@ -426,7 +429,7 @@ class UniversalCSVGenerator:
         For CSV, we want the by_occupation list as a multi-row DataFrame
         """
         if isinstance(data, dict):
-            # v4.9.0 FIX: Extract by_occupation list for proper CSV
+            # v4.9.1 FIX: Extract by_occupation list for proper CSV
             if 'by_occupation' in data:
                 by_occ_data = data['by_occupation']
                 if isinstance(by_occ_data, list) and len(by_occ_data) > 0:
