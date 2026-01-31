@@ -2,108 +2,134 @@
 Labor RAG System Version Information
 =====================================
 
-Version 4.9.1 - Fatal CSV Generator Error Fix
+Version 4.9.2 - Employment Query Routing Fix
 Release Date: January 27, 2026
 
-CRITICAL HOTFIX (v4.9.1):
-- Fixed NameError in CSV generator causing complete query failure
-- Root cause: Referenced undefined variable 'retrieval_results'
-- Impact: All queries in v4.9.0 failed with NameError
-- Result: System now works correctly with proper variable references
+CRITICAL FIX (v4.9.2):
+- Fixed "total employment" queries returning tasks instead of occupations
+- Root cause: v4.9.0/v4.9.1 defaulted to tasks for all category queries
+- Impact: Employment queries showed task details when users wanted occupation totals
+- Result: Now detects employment keywords and returns occupation summaries
 
-FATAL ERROR (v4.9.0):
-```
-🔴 Query processing failed: name 'retrieval_results' is not defined
-```
+ISSUE EXAMPLE:
+Query: "What's the total employment of workers that create digital documents?"
+
+User expects: Occupation summary (35 occupations with employment totals) ✅
+Before (v4.9.1):
+- System returned: Task details (89 task descriptions) ❌
+- Table showed: "Task Description | Occupation | Avg Time" ❌
+- CSV had: 35 occupation rows ✅ (correct)
+- Mismatch: CSV (occupations) ≠ UI (tasks) ❌
+
+After (v4.9.2):
+- System returns: Occupation summary (35 occupations) ✅
+- Table shows: "Occupation | Employment | Industries" ✅
+- CSV has: 35 occupation rows ✅
+- Match: CSV (occupations) = UI (occupations) ✅
 
 ROOT CAUSE:
-In v4.9.0, added task CSV extraction logic but referenced wrong variable:
-
+v4.9.0/v4.9.1 changed routing to default to tasks for category queries:
 ```python
-# BROKEN CODE (v4.9.0):
-is_task_query = (
-    'total_tasks' in computational_results and
-    'semantic_results' in retrieval_results and  # ❌ retrieval_results undefined!
-    'filtered_dataframe' in retrieval_results    # ❌ NameError!
-)
+# v4.9.0/v4.9.1 LOGIC:
+if wants_task_details:
+    return task_details
+elif wants_occupation_summary:  # Only if "jobs" or "occupations" in query
+    return occupation_summary
+else:
+    return task_details  # ← DEFAULT for category queries
 ```
 
-Problem: `retrieval_results` doesn't exist in csv_generator.py scope!
+Problem: "total employment of workers that create X" defaulted to tasks!
+But "total employment" clearly wants occupation-level aggregation, not task details.
 
-The generate() method receives:
-- query
-- semantic_results
-- computational_results  
-- routing_info
+Example breakdown:
+- "workers that create documents" → could be tasks (WHAT they create)
+- "**total employment** of workers that create documents" → occupations (HOW MANY in each job)
+- "what **jobs** create documents" → occupations (WHO creates)
 
-But I tried to reference `retrieval_results` which is NOT a parameter!
-
-SOLUTION (v4.9.1):
-Updated to use correct parameter names:
+SOLUTION (v4.9.2):
+Added employment keyword detection:
 
 ```python
-# FIXED CODE (v4.9.1):
-is_task_query = (
-    'total_tasks' in computational_results and
-    semantic_results is not None and            # ✅ Correct parameter
-    len(semantic_results) > 0 and
-    'filtered_dataframe' in computational_results and  # ✅ Correct dict
-    isinstance(computational_results.get('filtered_dataframe'), pd.DataFrame)
-)
+# v4.9.2 FIX: Detect employment-related queries
+wants_employment_summary = any(phrase in query_lower for phrase in [
+    'total employment', 'employment of', 'how many workers', 'number of workers',
+    'workforce', 'headcount', 'staff', 'employees'
+])
 
-if is_task_query:
-    df = self._extract_task_details_from_dataframe(
-        computational_results['filtered_dataframe'],  # ✅ From computational_results
-        semantic_results                              # ✅ Correct parameter
-    )
+# If query asks for employment data, treat as occupation query
+if wants_employment_summary and not wants_task_details:
+    wants_occupation_summary = True
 ```
+
+Result: Employment queries now correctly route to occupation summaries!
 
 CHANGES MADE:
-- app/llm/csv_generator.py: Lines 86-131
-  - Updated _tier1_computational signature: Added semantic_results parameter
-  - Fixed task detection: Use computational_results and semantic_results
-  - Fixed extraction: Pass correct parameters to _extract_task_details_from_dataframe
-  
-- app/llm/csv_generator.py: Line 53
-  - Updated generate() call: Pass semantic_results to _tier1_computational
+- app/rag/retriever.py: Lines 100-110
+  - Added wants_employment_summary detection
+  - Employment keywords: total employment, employment of, how many workers, etc.
+  - Auto-set wants_occupation_summary = True for employment queries
+  - Only if NOT explicitly asking for tasks
 
-IMPACT:
-Before v4.9.1:
-- ALL queries fail with NameError ❌
-- System completely broken ❌
-- No CSV generation works ❌
-
-After v4.9.1:
-- All queries work ✅
-- Task CSV extraction works ✅
-- System fully functional ✅
-
-TESTING:
-Query: "What jobs likely require one to create digital documents?"
-- v4.9.0: ❌ FATAL ERROR: name 'retrieval_results' is not defined
-- v4.9.1: ✅ Returns occupation summary (35 occupations)
+EXAMPLES:
 
 Query: "What's the total employment of workers that create documents?"
-- v4.9.0: ❌ FATAL ERROR: name 'retrieval_results' is not defined  
-- v4.9.1: ✅ Returns task details (89 tasks) with CSV
+- v4.9.1: Returns tasks ❌
+- v4.9.2: Returns occupations ✅ (detects "total employment")
+
+Query: "How many workers create digital documents?"
+- v4.9.1: Returns tasks ❌
+- v4.9.2: Returns occupations ✅ (detects "how many workers")
+
+Query: "What's the workforce for document creation?"
+- v4.9.1: Returns tasks ❌
+- v4.9.2: Returns occupations ✅ (detects "workforce")
+
+Query: "Workers that create documents" (no employment keywords)
+- v4.9.1: Returns tasks ✅
+- v4.9.2: Returns tasks ✅ (no change - still defaults to tasks)
+
+Query: "What tasks involve creating documents?"
+- v4.9.1: Returns tasks ✅
+- v4.9.2: Returns tasks ✅ (explicit task query - overrides employment)
+
+ROUTING PRIORITY (v4.9.2):
+1. Explicit task request ("what tasks") → tasks
+2. Employment keywords ("total employment") → occupations
+3. Explicit occupation request ("what jobs") → occupations
+4. Industry request ("by industry") → industries
+5. Default for category queries → tasks
+
+IMPACT:
+Before v4.9.2:
+- "total employment of workers" → tasks (wrong) ❌
+- CSV and UI mismatch ❌
+- User confusion: "I wanted employment totals!" ❌
+
+After v4.9.2:
+- "total employment of workers" → occupations (correct) ✅
+- CSV and UI match ✅
+- User gets employment totals as expected ✅
 
 BACKWARD COMPATIBILITY:
-- All v4.9.0 routing logic preserved
-- Task vs occupation default behavior unchanged
-- Only variable reference fixed
+- Explicit task queries: Still work ("what tasks")
+- Explicit occupation queries: Still work ("what jobs")
+- Category queries without keywords: Still default to tasks
+- NEW: Employment queries now return occupations
 
 USER VALUE:
-- System works again (v4.9.0 was completely broken)
-- Task CSV extraction now functional
-- All query types operational
+- Employment queries return correct data type
+- CSV and UI are consistent
+- Natural language works intuitively
+- "total employment" gives employment totals (not task lists)
 
 Previous Versions:
-- v4.9.0: Task routing fix (BROKEN - NameError)
+- v4.9.1: Fatal NameError fix (hotfix)
+- v4.9.0: Task routing fix (introduced employment issue)
 - v4.8.8: Validation count fix
-- v4.8.7: Time analysis CSV export fix
 """
 
-__version__ = "4.9.1"
+__version__ = "4.9.2"
 __release_date__ = "2025-01-24"
 __codename__ = "Genesis"  # First version with zero hardcoding
 
