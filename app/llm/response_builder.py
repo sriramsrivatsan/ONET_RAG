@@ -36,24 +36,66 @@ class ResponseBuilder:
         correct_total = computational_results['total_employment']
         logger.info(f"🔍 Validating totals - correct total from data: {correct_total:.2f}k", show_ui=False)
         
-        # Determine query type: occupation, industry, or task summary
-        is_occupation = 'total_occupations' in computational_results and 'total_tasks' not in computational_results
-        is_industry = 'total_industries' in computational_results
-        is_task = 'total_tasks' in computational_results
+        # v4.8.8 FIX: Determine query type based on ACTUAL DATA returned, not just metadata
+        # Priority: Check for actual data structures first (occupation_employment, industry_employment)
+        # Then fall back to metadata fields (total_occupations, total_tasks, total_industries)
         
-        if not (is_occupation or is_industry or is_task):
-            logger.debug("Not a recognized summary type - skipping validation", show_ui=False)
-            return answer  # Not a summary response
+        is_occupation = False
+        is_industry = False
+        is_task = False
+        count = 0
+        entity_type = "items"
         
-        if is_task:
-            count = computational_results.get('total_tasks', 0)
+        # Check for occupation employment data (highest priority for occupation queries)
+        if 'occupation_employment' in computational_results:
+            occ_data = computational_results['occupation_employment']
+            if isinstance(occ_data, pd.DataFrame) and not occ_data.empty:
+                is_occupation = True
+                count = len(occ_data)
+                entity_type = "occupations"
+                logger.debug(f"Detected occupation query from occupation_employment data: {count} rows", show_ui=False)
+        
+        # Check for industry employment data (highest priority for industry queries)
+        elif 'industry_employment' in computational_results:
+            ind_data = computational_results['industry_employment']
+            if isinstance(ind_data, pd.DataFrame) and not ind_data.empty:
+                is_industry = True
+                count = len(ind_data)
+                entity_type = "industries"
+                logger.debug(f"Detected industry query from industry_employment data: {count} rows", show_ui=False)
+        
+        # Check for industry proportions data
+        elif 'industry_proportions' in computational_results:
+            ind_prop = computational_results['industry_proportions']
+            if isinstance(ind_prop, dict) and 'industries' in ind_prop:
+                is_industry = True
+                count = len(ind_prop['industries']) if isinstance(ind_prop['industries'], list) else ind_prop.get('total_industries', 0)
+                entity_type = "industries"
+                logger.debug(f"Detected industry query from industry_proportions data: {count} items", show_ui=False)
+        
+        # Fall back to metadata fields (less reliable)
+        elif 'total_tasks' in computational_results:
+            is_task = True
+            count = computational_results['total_tasks']
             entity_type = "tasks"
-        elif is_occupation:
+            logger.debug(f"Detected task query from total_tasks metadata: {count} tasks", show_ui=False)
+        
+        elif 'total_occupations' in computational_results:
+            is_occupation = True
             count = computational_results['total_occupations']
             entity_type = "occupations"
-        else:
+            logger.debug(f"Detected occupation query from total_occupations metadata: {count} occupations", show_ui=False)
+        
+        elif 'total_industries' in computational_results:
+            is_industry = True
             count = computational_results['total_industries']
             entity_type = "industries"
+            logger.debug(f"Detected industry query from total_industries metadata: {count} industries", show_ui=False)
+        
+        # v4.8.8: If still no type detected, skip validation
+        if not (is_occupation or is_industry or is_task):
+            logger.debug("Not a recognized summary type - skipping validation", show_ui=False)
+            return answer
         
         logger.info(f"🔍 Validating {entity_type} summary with {count} {entity_type}", show_ui=False)
         
@@ -400,10 +442,10 @@ class QueryProcessor:
         self.dataframe = dataframe
         self.dictionary = dictionary
         
-        # NEW v4.8.5: Initialize universal CSV generator
+        # NEW v4.8.8: Initialize universal CSV generator
         from app.llm.csv_generator import UniversalCSVGenerator
         self.csv_generator = UniversalCSVGenerator()
-        logger.info("✓ v4.8.5: Universal CSV generator initialized", show_ui=False)
+        logger.info("✓ v4.8.8: Universal CSV generator initialized", show_ui=False)
         
         # Load dictionary if not provided
         if self.dictionary is None:
@@ -474,7 +516,7 @@ class QueryProcessor:
             routing_info=routing_info
         )
         
-        # Step 4: Generate CSV data - NEW v4.8.5: UNIVERSAL for ALL queries
+        # Step 4: Generate CSV data - NEW v4.8.8: UNIVERSAL for ALL queries
         # OLD: Conditional logic, csv_data was None for most queries
         # NEW: Always generate CSV using 3-tier strategy
         
@@ -499,7 +541,7 @@ class QueryProcessor:
             })
         
         logger.info(
-            f"✅ v4.8.5: CSV ready - {len(csv_data)} rows × {len(csv_data.columns)} columns",
+            f"✅ v4.8.8: CSV ready - {len(csv_data)} rows × {len(csv_data.columns)} columns",
             show_ui=False
         )
         
