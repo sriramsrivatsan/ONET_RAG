@@ -2,134 +2,161 @@
 Labor RAG System Version Information
 =====================================
 
-Version 4.8.8 - Validation Count Mismatch Fix
+Version 4.9.0 - Task vs Occupation Routing Fix
 Release Date: January 27, 2026
 
-CRITICAL FIX (v4.8.8):
-- Fixed validation showing wrong entity count (tasks vs occupations)
-- Root cause: Priority logic used metadata instead of actual data structure
-- Impact: Occupation queries validated as task queries (89 tasks instead of 35 occupations)
-- Result: Now correctly validates based on actual returned data type
+MAJOR FIX (v4.9.0):
+- Fixed queries about "workers that do X" returning occupations instead of tasks
+- Root cause: System defaulted to occupation summaries for category queries
+- Impact: Users asking WHAT workers do (tasks) got WHO does it (job titles)
+- Result: Now returns tasks by default for category queries (what users expect)
 
 ISSUE EXAMPLE:
 Query: "What's the total employment of workers that create digital documents?"
-Backend: Returns 35 occupations with employment data ✅
-CSV Export: 35 rows (correct) ✅
-Before (v4.8.7):
-- Validation: "🔍 Validating tasks summary with 89 tasks" ❌
-- UI might show: "89 tasks" instead of "35 occupations" ❌
-- Confusion: CSV has 35 rows but UI says 89 ❌
+User expects: Tasks involved in creating digital documents ✅
+Before (v4.8.8):
+- System returned: 35 occupation summaries (job titles) ❌
+- CSV contained: Occupation names, employment counts
+- User thought: "I wanted to know WHAT they do, not job titles!"
 
-After (v4.8.8):
-- Validation: "🔍 Validating occupations summary with 35 occupations" ✅
-- UI shows: "35 occupations" (matches CSV) ✅
-- Consistent: CSV and UI match perfectly ✅
+After (v4.9.0):
+- System returns: 89 task descriptions (what workers do) ✅
+- CSV contains: Task descriptions, hours/week, occupations
+- User gets: Exactly what they asked for!
 
 ROOT CAUSE:
-Validation logic determined entity type using metadata presence:
+When category is detected (e.g., "document_creation"), the routing logic was:
+
+OLD LOGIC (v4.8.8):
 ```python
-# OLD (v4.8.7) - WRONG PRIORITY:
-is_occupation = 'total_occupations' in results and 'total_tasks' not in results
-is_task = 'total_tasks' in results
+if wants_task_details:
+    return task_details
+elif wants_occupation_summary or not wants_task_details:  # ← WRONG DEFAULT
+    return occupation_summary
 ```
 
-Problem: If computational_results contains BOTH total_occupations AND total_tasks:
-- is_occupation = False (because total_tasks is present)
-- is_task = True (takes priority)
-- Result: Occupation query validated as task query!
+Problem: If user doesn't explicitly say "what tasks", defaults to occupation summary
+But "workers that create X" implies wanting to know WHAT they do (tasks)!
 
-Why both were present:
-1. Query: "What's the total employment of workers that create..."
-2. System correctly returns OCCUPATION SUMMARY (35 occupations)
-3. But data has 1083 task-occupation-industry rows
-4. Task analysis runs: Finds 89 unique tasks in the data
-5. Adds total_tasks=89 to computational_results (metadata)
-6. Validation sees total_tasks, thinks it's a task query ❌
-7. Validates against 89 tasks instead of 35 occupations ❌
+Example interpretations:
+- "workers that create documents" → what do they create? (tasks) ✓
+- "jobs that create documents" → which job titles? (occupations) ✓
+- "employment of workers that create" → without "jobs", defaults to tasks ✓
 
-SOLUTION:
-Updated validation to check ACTUAL DATA STRUCTURES first, metadata second:
-
+NEW LOGIC (v4.9.0):
 ```python
-# NEW (v4.8.8) - CORRECT PRIORITY:
-# Priority 1: Check actual data returned
-if 'occupation_employment' in results:
-    # occupation_employment DataFrame exists → occupation query!
-    is_occupation = True
-    count = len(occupation_employment)  # Count actual rows
-
-# Priority 2: Check industry data
-elif 'industry_employment' in results or 'industry_proportions' in results:
-    is_industry = True
-    count = len(industry_data)
-
-# Priority 3: Fall back to metadata (less reliable)
-elif 'total_tasks' in results:
-    is_task = True
-    count = results['total_tasks']
-elif 'total_occupations' in results:
-    is_occupation = True
-    count = results['total_occupations']
+if wants_task_details:
+    return task_details
+elif wants_industry_summary:
+    return industry_summary
+elif wants_occupation_summary:  # ← Only if explicitly requested
+    return occupation_summary
+else:
+    return task_details  # ← DEFAULT for category queries
 ```
 
-Logic: If occupation_employment DataFrame exists with 35 rows, it's an occupation query with 35 occupations, regardless of what other metadata exists!
+Logic: When someone asks about "workers that do X", they want to know WHAT workers do!
+
+CSV GENERATION FIX:
+Also updated CSV generator to prioritize task data:
+
+OLD CSV PRIORITY:
+1. occupation_employment (always used first)
+2. industry_employment
+3. task data (never reached)
+
+NEW CSV PRIORITY (v4.9.0):
+0. Task details (if task query detected) ← NEW TIER!
+1. savings_analysis
+2. occupation_employment (only if not task query)
+3. industry_employment
+4. ...
+
+Detection logic:
+```python
+is_task_query = (
+    'total_tasks' in computational_results and
+    'filtered_dataframe' in retrieval_results
+)
+
+if is_task_query:
+    csv = extract_task_details_from_dataframe(filtered_df)
+```
 
 CHANGES MADE:
-- app/llm/response_builder.py: _validate_and_correct_totals()
-  - Lines 36-94: Complete rewrite of entity type detection
-  - Priority 1: occupation_employment / industry_employment
-  - Priority 2: industry_proportions
-  - Priority 3: Metadata fields (total_tasks, total_occupations, total_industries)
-  - Added comprehensive logging for debugging
-  - Ensures correct validation for all query types
+- app/rag/retriever.py: Lines 186-205
+  - Changed default from occupation_summary to task_details
+  - Only return occupation_summary if explicitly requested
+  - Separate route for category query default
 
-IMPACT:
-Before v4.8.8:
-- Occupation queries: Validated as task queries if task metadata present ❌
-- Count mismatch: CSV shows 35, validation uses 89 ❌
-- User confusion: "Why does UI say 89 when CSV has 35?" ❌
-
-After v4.8.8:
-- Occupation queries: Always validated as occupation queries ✅
-- Count match: CSV shows 35, validation uses 35 ✅
-- User clarity: "UI and CSV both say 35 occupations" ✅
+- app/llm/csv_generator.py: Lines 105-127, 313-365
+  - Added Tier 0 for task details (checked first)
+  - New method: _extract_task_details_from_dataframe()
+  - De-duplicates tasks, sorts by hours/week
+  - Creates proper task CSV with columns:
+    - Task Description
+    - Occupation
+    - Hours/Week
+    - Employment (thousands)
+    - Hourly Wage
+    - Industries Count
 
 EXAMPLES:
+
+Query: "What's the total employment of workers that create digital documents?"
+- v4.8.8: Returns 35 occupations ❌
+- v4.9.0: Returns 89 tasks ✅
+
 Query: "What jobs create digital documents?"
-- Returns: occupation_employment with 35 rows
-- v4.8.7: Validates as "89 tasks" (wrong)
-- v4.8.8: Validates as "35 occupations" (correct)
+- v4.8.8: Returns 35 occupations ✅ (explicitly asked for "jobs")
+- v4.9.0: Returns 35 occupations ✅ (still works - explicitly requested)
 
-Query: "What industries are rich in document workers?"
-- Returns: industry_employment with 20 rows
-- v4.8.7: Validates as "89 tasks" if task metadata present (wrong)
-- v4.8.8: Validates as "20 industries" (correct)
+Query: "What occupations create digital documents?"
+- v4.8.8: Returns 35 occupations ✅
+- v4.9.0: Returns 35 occupations ✅ (explicitly requested)
 
-Query: "What tasks involve creating documents?"
-- Returns: task details with 89 rows
-- v4.8.7: Validates as "89 tasks" (correct - but by accident!)
-- v4.8.8: Validates as "89 tasks" (correct - by design!)
+Query: "What tasks are involved in creating digital documents?"
+- v4.8.8: Returns 89 tasks ✅
+- v4.9.0: Returns 89 tasks ✅
 
 BACKWARD COMPATIBILITY:
-- All v4.8.7 features maintained
-- Time analysis CSV fix (v4.8.7) preserved
-- Display all rows (v4.8.6) preserved
-- Universal CSV download (v4.8.5) preserved
-- No breaking changes
+- Explicit occupation queries: Still work (asks for "jobs" or "occupations")
+- Explicit task queries: Still work (asks for "tasks")
+- Implicit category queries: NOW RETURN TASKS (was occupations)
+
+CSV STRUCTURE IMPROVEMENT:
+Task CSV now includes:
+- Task Description: Full text of what workers do
+- Occupation: Which occupation performs this task
+- Hours/Week: Time spent on task
+- Employment: Number of workers
+- Hourly Wage: Compensation
+- Industries Count: How many industries use this task
+
+IMPACT:
+Before v4.9.0:
+- "workers that do X" → occupation names (not helpful)
+- User has to ask "what tasks" explicitly
+- CSV shows job titles, not actual work
+
+After v4.9.0:
+- "workers that do X" → task descriptions (helpful!)
+- Natural language works intuitively
+- CSV shows actual work performed
 
 USER VALUE:
-- Correct validation messages
-- CSV and UI consistency
-- No more count confusion
-- Professional accuracy
+- Get what you expect when asking about "workers that do X"
+- See actual tasks, not just job titles
+- CSV contains actionable task details
+- Natural queries work correctly
 
 Previous Versions:
+- v4.8.8: Validation count fix
 - v4.8.7: Time analysis CSV export fix
 - v4.8.6: Display all rows (no truncation)
-- v4.8.5: Universal CSV download for all queries
 """
 
-__version__ = "4.8.8"
+__version__ = "4.9.0"
 __release_date__ = "2025-01-24"
 __codename__ = "Genesis"  # First version with zero hardcoding
 

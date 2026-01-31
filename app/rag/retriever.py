@@ -34,7 +34,7 @@ class HybridRetriever:
         # V4.0.0: Initialize generic pattern engine
         self.pattern_engine = get_pattern_engine()
         logger.info(
-            f"✓ v4.8.8: Generic pattern engine loaded with {len(self.pattern_engine.categories)} task categories",
+            f"✓ v4.9.0: Generic pattern engine loaded with {len(self.pattern_engine.categories)} task categories",
             show_ui=False
         )
     
@@ -125,7 +125,7 @@ class HybridRetriever:
             category_config = self.pattern_engine.get_category_config(detected_category)
             results['metadata']['task_category'] = detected_category
             results['metadata']['category_display_name'] = category_config.display_name
-            logger.info(f"✓ v4.8.8: Detected task category: {detected_category}", show_ui=False)
+            logger.info(f"✓ v4.9.0: Detected task category: {detected_category}", show_ui=False)
         
         # Check if this is a task-based query (any category detected)
         is_task_category_query = detected_category is not None
@@ -171,7 +171,7 @@ class HybridRetriever:
         
         # V4.0.0: GENERIC task category queries (replaces hardcoded document creation)
         elif is_task_category_query and self.df is not None:
-            logger.info(f"✓ v4.8.8: Task category query detected ({detected_category}) - using generic pattern matching", show_ui=False)
+            logger.info(f"✓ v4.9.0: Task category query detected ({detected_category}) - using generic pattern matching", show_ui=False)
             
             # GENERIC pattern matching using engine (replaces hardcoded action_verbs/object_keywords)
             matching_df = self.pattern_engine.filter_dataframe(
@@ -181,7 +181,7 @@ class HybridRetriever:
                 return_match_details=False
             )
             
-            logger.info(f"✓ v4.8.8: Generic pattern matching found {len(matching_df)} rows for {detected_category}", show_ui=False)
+            logger.info(f"✓ v4.9.0: Generic pattern matching found {len(matching_df)} rows for {detected_category}", show_ui=False)
             
             # ROUTE 1: User wants TASK DETAILS (task descriptions with time)
             if wants_task_details:
@@ -193,15 +193,21 @@ class HybridRetriever:
                 logger.info(f"Returning INDUSTRY SUMMARY", show_ui=False)
                 results = self._create_industry_summary_response(matching_df, results, query_lower)
             
-            # ROUTE 3: User wants OCCUPATION BREAKDOWN (default for job queries)
-            elif wants_occupation_summary or not wants_task_details:
-                logger.info(f"Returning OCCUPATION SUMMARY", show_ui=False)
+            # ROUTE 3: User explicitly wants OCCUPATION BREAKDOWN
+            elif wants_occupation_summary:
+                logger.info(f"Returning OCCUPATION SUMMARY (explicitly requested)", show_ui=False)
                 results = self._create_occupation_summary_response(matching_df, results, query_lower)
+            
+            # v4.9.0 FIX: ROUTE 4: Default to TASK DETAILS for category queries
+            # When user asks about "workers that create X", they want to see WHAT they do (tasks), not job titles
+            else:
+                logger.info(f"Returning TASK DETAILS (default for category query: {detected_category})", show_ui=False)
+                results = self._create_task_details_response(matching_df, results, query_lower)
             
         
         # Handle breakdown queries (V4.0.0: now uses generic pattern matching)
         elif is_breakdown_query and detected_category and self.df is not None:
-            logger.info(f"✓ v4.8.8: Breakdown query for {detected_category}", show_ui=False)
+            logger.info(f"✓ v4.9.0: Breakdown query for {detected_category}", show_ui=False)
             
             # V4.0.0: Generic pattern matching (replaces hardcoded patterns)
             matching_df = self.pattern_engine.filter_dataframe(
@@ -210,7 +216,7 @@ class HybridRetriever:
                 task_column='Detailed job tasks'
             )
             
-            logger.info(f"✓ v4.8.8: Breakdown query - generic pattern matching found {len(matching_df)} rows", show_ui=False)
+            logger.info(f"✓ v4.9.0: Breakdown query - generic pattern matching found {len(matching_df)} rows", show_ui=False)
             
             # Get all unique industry-occupation pairs with employment
             ind_occ_data = matching_df.groupby(['Industry title', 'ONET job title']).agg({
@@ -355,7 +361,7 @@ class HybridRetriever:
         """
         logger.info(f"Creating task details response from {len(matching_df)} matching rows", show_ui=False)
         
-        # CRITICAL FIX v4.8.8: De-duplicate tasks before displaying
+        # CRITICAL FIX v4.9.0: De-duplicate tasks before displaying
         # Each row is task×occupation×industry, so same task appears multiple times
         # Group by (task, occupation) to show each unique task only once
         
@@ -1163,14 +1169,14 @@ Original query: "{original_query}"
                 attribute_name = f"{category_config.display_name.lower()} workers"
                 
                 # Generic pattern matching using engine
-                logger.info(f"✓ v4.8.8: Generic pattern matching for {detected_category} on full dataset", show_ui=False)
+                logger.info(f"✓ v4.9.0: Generic pattern matching for {detected_category} on full dataset", show_ui=False)
                 
                 pattern_df = self.pattern_engine.filter_dataframe(
                     self.df,
                     detected_category,
                     task_column='Detailed job tasks'
                 )
-                logger.info(f"✓ v4.8.8: Pattern matching found {len(pattern_df)} rows (of {len(self.df)} total)", show_ui=False)
+                logger.info(f"✓ v4.9.0: Pattern matching found {len(pattern_df)} rows (of {len(self.df)} total)", show_ui=False)
                 
             elif params.get('entity'):
                 attribute_name = f"{params['entity']} workers"
@@ -1293,7 +1299,7 @@ Original query: "{original_query}"
             detected_category = self.pattern_engine.detect_task_category(query)
             
             if detected_category:
-                logger.info(f"✓ v4.8.8: Pattern match FOUND ({detected_category}) - triggering occupation analysis", show_ui=False)
+                logger.info(f"✓ v4.9.0: Pattern match FOUND ({detected_category}) - triggering occupation analysis", show_ui=False)
                 
                 # CRITICAL: Use full dataframe, not filtered subset
                 # Pattern matching needs to analyze ALL occupations, not just semantically similar ones
@@ -1309,7 +1315,7 @@ Original query: "{original_query}"
                 # Analyze occupations from matching data
                 occupation_analysis = self._analyze_occupations_from_matches(matching_df)
                 computational_results['occupation_pattern_analysis'] = occupation_analysis
-                logger.info(f"✓ v4.8.8: Pattern analysis complete: {len(occupation_analysis.get('top_occupations', []))} occupations matched", show_ui=False)
+                logger.info(f"✓ v4.9.0: Pattern analysis complete: {len(occupation_analysis.get('top_occupations', []))} occupations matched", show_ui=False)
                 computational_results['occupation_pattern_analysis'] = occupation_analysis
                 logger.info(f"Pattern analysis complete: {len(occupation_analysis.get('top_occupations', []))} occupations matched", show_ui=False)
                 
@@ -1636,7 +1642,7 @@ Original query: "{original_query}"
         """
         logger.info(f"Creating task details response from {len(matching_df)} rows", show_ui=False)
         
-        # CRITICAL FIX v4.8.8: De-duplicate tasks before displaying
+        # CRITICAL FIX v4.9.0: De-duplicate tasks before displaying
         # Each row is task×occupation×industry, so same task appears multiple times
         # Group by (task, occupation) to show each unique task only once
         
@@ -2120,10 +2126,10 @@ Original query: "{original_query}"
             'total_occupations_analyzed': len(all_occupations),
             'occupations_with_matches': len(occupation_scores),
             'top_occupations': sorted_occupations[:15],
-            'method': 'v4.8.8_generic_pattern_engine'
+            'method': 'v4.9.0_generic_pattern_engine'
         }
         
-        logger.info(f"✓ v4.8.8: Occupation analysis: {len(occupation_scores)} occupations match pattern", show_ui=False)
+        logger.info(f"✓ v4.9.0: Occupation analysis: {len(occupation_scores)} occupations match pattern", show_ui=False)
         
         return analysis
     
@@ -2135,7 +2141,7 @@ Original query: "{original_query}"
     ) -> Dict[str, Any]:
         """
         LEGACY (v3.x): Analyze which occupations have tasks matching specific patterns.
-        Kept for backward compatibility but should not be used in v4.8.8+
+        Kept for backward compatibility but should not be used in v4.9.0+
         
         Args:
             df: DataFrame with task data
@@ -2145,7 +2151,7 @@ Original query: "{original_query}"
         Returns:
             Dictionary with occupation rankings
         """
-        logger.warning("⚠️  Using legacy _analyze_occupations_by_pattern (should use _analyze_occupations_from_matches in v4.8.8)", show_ui=False)
+        logger.warning("⚠️  Using legacy _analyze_occupations_by_pattern (should use _analyze_occupations_from_matches in v4.9.0)", show_ui=False)
         
         occupation_scores = {}
         

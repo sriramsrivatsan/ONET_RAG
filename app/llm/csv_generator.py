@@ -1,5 +1,5 @@
 """
-Universal CSV Generator for Labor RAG v4.8.7
+Universal CSV Generator for Labor RAG v4.9.0
 Generates CSV for ANY query response using 3-tier strategy
 """
 import pandas as pd
@@ -103,6 +103,28 @@ class UniversalCSVGenerator:
         if not computational_results or len(computational_results) == 0:
             logger.debug("No computational results available", show_ui=False)
             return None
+        
+        # v4.9.0: Check if this is a task details query (semantic results with task data)
+        # Task queries have semantic_results with task metadata and filtered_dataframe
+        is_task_query = (
+            'total_tasks' in computational_results and
+            'semantic_results' in retrieval_results and
+            'filtered_dataframe' in retrieval_results and
+            isinstance(retrieval_results.get('filtered_dataframe'), pd.DataFrame)
+        )
+        
+        if is_task_query:
+            # Extract task details from filtered_dataframe
+            df = self._extract_task_details_from_dataframe(
+                retrieval_results['filtered_dataframe'],
+                retrieval_results.get('semantic_results', [])
+            )
+            if df is not None and not df.empty:
+                logger.info(
+                    f"✅ Tier 0 (Task Details): Generated CSV from task query ({len(df)} rows × {len(df.columns)} cols)",
+                    show_ui=True
+                )
+                return df
         
         # Define extraction priority and methods
         extractors = [
@@ -288,6 +310,56 @@ class UniversalCSVGenerator:
     # Tier 1 Extractor Methods
     # =========================================================================
     
+    def _extract_task_details_from_dataframe(
+        self,
+        filtered_df: pd.DataFrame,
+        semantic_results: List[Dict]
+    ) -> Optional[pd.DataFrame]:
+        """
+        Extract task details from filtered dataframe for CSV export
+        
+        v4.9.0: When user asks about "workers that create X", they want to see
+        WHAT workers do (tasks), not just job titles (occupations).
+        
+        Args:
+            filtered_df: Filtered dataframe with task-occupation-industry rows
+            semantic_results: Semantic results with task metadata
+        
+        Returns:
+            DataFrame with task-level data for CSV export
+        """
+        if filtered_df is None or filtered_df.empty:
+            return None
+        
+        # De-duplicate tasks (same as in retriever._create_task_details_response)
+        # Each row is task×occupation×industry, so same task appears multiple times
+        task_groups = filtered_df.groupby(['Detailed job tasks', 'ONET job title']).agg({
+            'Hours per week spent on task': 'max',
+            'Employment': 'first',
+            'Hourly wage': 'first',
+            'Industry title': 'count'
+        }).reset_index()
+        
+        # Rename columns for CSV clarity
+        task_groups = task_groups.rename(columns={
+            'Detailed job tasks': 'Task Description',
+            'ONET job title': 'Occupation',
+            'Hours per week spent on task': 'Hours/Week',
+            'Employment': 'Employment (thousands)',
+            'Hourly wage': 'Hourly Wage',
+            'Industry title': 'Industries Count'
+        })
+        
+        # Sort by hours per week (most important tasks first)
+        task_groups = task_groups.sort_values('Hours/Week', ascending=False, na_position='last')
+        
+        logger.debug(
+            f"Extracted {len(task_groups)} unique tasks from {len(filtered_df)} rows",
+            show_ui=False
+        )
+        
+        return task_groups
+    
     def _extract_savings(self, data: Any) -> Optional[pd.DataFrame]:
         """Extract savings analysis data"""
         if isinstance(data, pd.DataFrame):
@@ -354,7 +426,7 @@ class UniversalCSVGenerator:
         For CSV, we want the by_occupation list as a multi-row DataFrame
         """
         if isinstance(data, dict):
-            # v4.8.7 FIX: Extract by_occupation list for proper CSV
+            # v4.9.0 FIX: Extract by_occupation list for proper CSV
             if 'by_occupation' in data:
                 by_occ_data = data['by_occupation']
                 if isinstance(by_occ_data, list) and len(by_occ_data) > 0:
