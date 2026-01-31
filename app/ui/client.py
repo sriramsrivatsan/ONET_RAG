@@ -366,62 +366,67 @@ class ClientView:
                 logger.info("Attempting to store filtered dataset for follow-up queries", show_ui=False)
                 logger.info(f"Retrieval results keys: {list(retrieval_results.keys())}", show_ui=False)
                 
-                if retrieval_results.get('filtered_dataframe') is not None:
-                    filtered_df = retrieval_results['filtered_dataframe']
-                    logger.info(f"Found filtered_dataframe: type={type(filtered_df)}, empty={filtered_df.empty if hasattr(filtered_df, 'empty') else 'N/A'}, shape={filtered_df.shape if hasattr(filtered_df, 'shape') else 'N/A'}", show_ui=False)
-                    
-                    if hasattr(filtered_df, 'empty') and not filtered_df.empty:
-                        # Reset index for follow-up query compatibility
-                        st.session_state.filtered_dataset = filtered_df.reset_index(drop=True)
-                        logger.info(f"✅ Stored filtered dataset with {len(filtered_df)} rows for follow-up queries", show_ui=False)
-                    else:
-                        logger.warning("Filtered dataframe is empty or not a DataFrame", show_ui=True)
-                        st.session_state.filtered_dataset = None
-                elif retrieval_results.get('semantic_results'):
-                    logger.info("No filtered_dataframe, trying to extract from semantic_results", show_ui=False)
-                    # Extract row indices from semantic results and filter dataframe
+                # v4.9.3 FIX: Prioritize storing what was SHOWN to user (semantic_results)
+                # NOT the underlying filtered_dataframe (which may have many more rows)
+                # This fixes follow-up query context loss where user asks about "above tasks"
+                # but system uses background dataset with different data
+                
+                stored_from_semantic = False
+                if retrieval_results.get('semantic_results'):
                     semantic_results = retrieval_results['semantic_results']
+                    
+                    # Check if we have row indices to extract the exact rows shown
                     row_indices = [
                         r['metadata'].get('row_index')
                         for r in semantic_results
                         if 'row_index' in r.get('metadata', {})
                     ]
-                    logger.info(f"Found {len(row_indices)} row indices in semantic_results", show_ui=False)
                     
                     if row_indices:
-                        # CRITICAL FIX: For iterative follow-up queries, use the CURRENT filtered_dataset
-                        # not the original dataframe, because row_indices are from the current context
+                        logger.info(f"Found {len(row_indices)} row indices in semantic_results (this is what user saw)", show_ui=False)
                         
-                        # Check if we're in a follow-up context (filtered_dataset exists)
+                        # Get base dataframe
                         if st.session_state.get('filtered_dataset') is not None and not st.session_state.filtered_dataset.empty:
-                            # This is a follow-up on a follow-up - use current filtered_dataset
                             base_df = st.session_state.filtered_dataset
                             logger.info(f"Using current filtered_dataset as base ({len(base_df)} rows) for iterative follow-up", show_ui=False)
                         elif st.session_state.dataframe is not None:
-                            # First follow-up - use original dataframe
                             base_df = st.session_state.dataframe
                             logger.info(f"Using original dataframe as base ({len(base_df)} rows) for first follow-up", show_ui=False)
                         else:
-                            logger.warning("❌ No base dataframe available for follow-up query!", show_ui=True)
-                            st.session_state.filtered_dataset = None
                             base_df = None
                         
                         if base_df is not None:
                             try:
-                                # Filter and reset index
-                                st.session_state.filtered_dataset = base_df.loc[row_indices].reset_index(drop=True)
-                                logger.info(f"✅ Created filtered dataset from {len(row_indices)} row indices", show_ui=False)
+                                # v4.9.3: Store the DISPLAYED rows (what user saw), not background data
+                                displayed_df = base_df.loc[row_indices].reset_index(drop=True)
+                                st.session_state.filtered_dataset = displayed_df
+                                logger.info(f"✅ v4.9.3: Stored DISPLAYED dataset ({len(displayed_df)} rows shown to user) for follow-up queries", show_ui=False)
+                                
+                                # Also store the full filtered_dataframe as backup context
+                                if retrieval_results.get('filtered_dataframe') is not None:
+                                    full_filtered = retrieval_results['filtered_dataframe']
+                                    if len(full_filtered) > len(displayed_df):
+                                        st.session_state.full_filtered_dataset = full_filtered.reset_index(drop=True)
+                                        logger.info(f"✅ v4.9.3: Also stored FULL filtered dataset ({len(full_filtered)} rows background) for context", show_ui=False)
+                                
+                                stored_from_semantic = True
                             except KeyError as e:
                                 logger.error(f"❌ Row index mismatch: {str(e)}", show_ui=True)
-                                logger.error(f"   Row indices requested: {row_indices[:10]}...", show_ui=False)
-                                logger.error(f"   Available indices in base_df: {base_df.index.tolist()[:10]}...", show_ui=False)
-                                # Fallback: use base_df as-is
-                                st.session_state.filtered_dataset = base_df.reset_index(drop=True)
+                                stored_from_semantic = False
+                
+                # v4.9.3: Only fall back to filtered_dataframe if we couldn't store from semantic_results
+                if not stored_from_semantic and retrieval_results.get('filtered_dataframe') is not None:
+                    filtered_df = retrieval_results['filtered_dataframe']
+                    logger.info(f"Found filtered_dataframe: type={type(filtered_df)}, empty={filtered_df.empty if hasattr(filtered_df, 'empty') else 'N/A'}, shape={filtered_df.shape if hasattr(filtered_df, 'shape') else 'N/A'}", show_ui=False)
+                    
+                    if hasattr(filtered_df, 'empty') and not filtered_df.empty:
+                        st.session_state.filtered_dataset = filtered_df.reset_index(drop=True)
+                        logger.info(f"✅ Stored filtered dataset with {len(filtered_df)} rows for follow-up queries", show_ui=False)
                     else:
-                        logger.warning("❌ No row indices found in semantic results or dataframe not available - follow-up queries won't work!", show_ui=True)
+                        logger.warning("Filtered dataframe is empty or not a DataFrame", show_ui=True)
                         st.session_state.filtered_dataset = None
-                else:
-                    logger.warning("❌ No filtered dataframe or semantic results available - follow-up queries won't work!", show_ui=True)
+                elif not stored_from_semantic:
+                    logger.warning("❌ No semantic results or filtered dataframe available - follow-up queries won't work!", show_ui=True)
                     st.session_state.filtered_dataset = None
                 
                 # Store in history
@@ -498,25 +503,25 @@ class ClientView:
         elif 'industry_employment' in computational_results:
             result_csv_df = computational_results['industry_employment']
         
-        # NEW v4.8.5: ALWAYS display CSV download for ALL queries
+        # NEW v4.9.3: ALWAYS display CSV download for ALL queries
         # Removed conditional logic - CSV is now universal
         
         csv_data = response.get('csv_data')
         query_counter = st.session_state.get('query_counter', 1)
         
         if csv_data is None:
-            # This should NEVER happen with v4.8.5 universal CSV
-            logger.error("❌ BUG v4.8.5: csv_data is None despite universal generation!", show_ui=False)
+            # This should NEVER happen with v4.9.3 universal CSV
+            logger.error("❌ BUG v4.9.3: csv_data is None despite universal generation!", show_ui=False)
             st.error("⚠️ CSV download unavailable (system error - please report this bug)")
         elif isinstance(csv_data, pd.DataFrame) and csv_data.empty:
             # This should also never happen
-            logger.error("❌ BUG v4.8.5: csv_data is empty DataFrame!", show_ui=False)
+            logger.error("❌ BUG v4.9.3: csv_data is empty DataFrame!", show_ui=False)
             st.warning("⚠️ CSV has no data")
         else:
-            # Show inline CSV download - ALWAYS for v4.8.5
+            # Show inline CSV download - ALWAYS for v4.9.3
             self._display_inline_result_csv(csv_data, query_counter)
             logger.info(
-                f"✅ v4.8.5: CSV download displayed - {len(csv_data)} rows × {len(csv_data.columns)} cols",
+                f"✅ v4.9.3: CSV download displayed - {len(csv_data)} rows × {len(csv_data.columns)} cols",
                 show_ui=False
             )
         
@@ -875,8 +880,18 @@ class ClientView:
                 
                 # Analyze the query to determine what's needed
                 
-                # Simple computational queries - no need for complex processing
-                if any(word in query_lower for word in ['total', 'sum', 'count', 'average', 'how many']):
+                # v4.9.3: Enhanced detection for simple computational queries
+                # Now handles: total, sum, count, average, top-N, rankings, savings calculations
+                is_simple_query = any([
+                    # Basic aggregations
+                    any(word in query_lower for word in ['total', 'sum', 'count', 'average', 'how many']),
+                    # Rankings
+                    any(word in query_lower for word in ['top', 'top-', 'highest', 'most', 'best']),
+                    # Calculations
+                    any(word in query_lower for word in ['savings', 'save', 'dollar', 'cost'])
+                ])
+                
+                if is_simple_query:
                     # Direct aggregation on filtered data
                     result = self._simple_aggregation_on_filtered_data(filtered_df, query)
                     if result:
@@ -981,6 +996,128 @@ class ClientView:
         query_lower = query.lower()
         
         try:
+            # v4.9.3: Total time calculation
+            if 'total' in query_lower and ('time' in query_lower or 'hour' in query_lower):
+                if 'Task time per week' in df.columns:
+                    # Calculate total time across all tasks
+                    total_time = df['Task time per week'].sum()
+                    answer = f"**Total Time Per Week:** {total_time:,.1f} hours across {len(df)} tasks"
+                    return {
+                        'answer': answer,
+                        'csv_data': pd.DataFrame({
+                            'Metric': ['Total Time (hours/week)', 'Number of Tasks'],
+                            'Value': [total_time, len(df)]
+                        })
+                    }
+            
+            # v4.9.3: Top-N ranking by time or employment
+            if any(word in query_lower for word in ['top', 'top-', 'highest', 'most', 'best']):
+                # Extract number (e.g., "top 10", "top-10", "top 5")
+                import re
+                numbers = re.findall(r'\b(\d+)\b', query_lower)
+                n = int(numbers[0]) if numbers else 10
+                
+                # Determine what to rank by
+                if 'time' in query_lower or 'hour' in query_lower:
+                    # Aggregate by occupation and sum time
+                    if 'ONET job title' in df.columns and 'Task time per week' in df.columns:
+                        occupation_time = df.groupby('ONET job title')['Task time per week'].sum().sort_values(ascending=False)
+                        top_n = occupation_time.head(n)
+                        
+                        # Create detailed answer
+                        answer_parts = [f"**Top {n} Occupations by Time Spent:**\n"]
+                        for i, (occ, time) in enumerate(top_n.items(), 1):
+                            answer_parts.append(f"{i}. **{occ}**: {time:.1f} hours/week")
+                        
+                        return {
+                            'answer': '\n'.join(answer_parts),
+                            'csv_data': pd.DataFrame({
+                                'Rank': range(1, len(top_n) + 1),
+                                'Occupation': top_n.index,
+                                'Time (hours/week)': top_n.values
+                            })
+                        }
+                
+                elif 'employment' in query_lower or 'worker' in query_lower:
+                    # Aggregate by occupation and sum employment (with de-duplication)
+                    if 'ONET job title' in df.columns and 'Employment' in df.columns:
+                        # De-duplicate first
+                        if 'Industry title' in df.columns:
+                            unique_pairs = df.groupby(['ONET job title', 'Industry title'])['Employment'].first()
+                            occupation_emp = unique_pairs.groupby('ONET job title').sum().sort_values(ascending=False)
+                        else:
+                            occupation_emp = df.groupby('ONET job title')['Employment'].sum().sort_values(ascending=False)
+                        
+                        top_n = occupation_emp.head(n)
+                        
+                        answer_parts = [f"**Top {n} Occupations by Employment:**\n"]
+                        for i, (occ, emp) in enumerate(top_n.items(), 1):
+                            answer_parts.append(f"{i}. **{occ}**: {emp:,.1f}k workers")
+                        
+                        return {
+                            'answer': '\n'.join(answer_parts),
+                            'csv_data': pd.DataFrame({
+                                'Rank': range(1, len(top_n) + 1),
+                                'Occupation': top_n.index,
+                                'Employment (thousands)': top_n.values
+                            })
+                        }
+            
+            # v4.9.3: Savings calculation (time × wage × employment)
+            if any(word in query_lower for word in ['savings', 'save', 'dollar', 'cost']):
+                # Check if we have all required columns
+                has_time = 'Task time per week' in df.columns
+                has_wage = 'Hourly wage' in df.columns
+                has_employment = 'Employment' in df.columns
+                
+                if has_time and has_wage and has_employment:
+                    # Calculate savings: hours/week × hourly wage × workers × weeks/year
+                    # Assume worker can automate 50% of task time (conservative estimate)
+                    automation_factor = 0.5
+                    weeks_per_year = 52
+                    
+                    # De-duplicate employment by occupation-industry
+                    if 'ONET job title' in df.columns and 'Industry title' in df.columns:
+                        # Calculate per unique occupation-industry pair
+                        unique_df = df.groupby(['ONET job title', 'Industry title']).agg({
+                            'Task time per week': 'sum',
+                            'Hourly wage': 'mean',
+                            'Employment': 'first'
+                        }).reset_index()
+                        
+                        # Calculate savings
+                        unique_df['weekly_savings_per_worker'] = (
+                            unique_df['Task time per week'] * automation_factor * unique_df['Hourly wage']
+                        )
+                        unique_df['total_weekly_savings'] = (
+                            unique_df['weekly_savings_per_worker'] * unique_df['Employment'] * 1000  # Employment in thousands
+                        )
+                        unique_df['total_annual_savings'] = unique_df['total_weekly_savings'] * weeks_per_year
+                        
+                        total_weekly = unique_df['total_weekly_savings'].sum()
+                        total_annual = unique_df['total_annual_savings'].sum()
+                        
+                        answer = f"""**Estimated Cost Savings from Automation:**
+
+**Total Weekly Savings:** ${total_weekly:,.0f}
+**Total Annual Savings:** ${total_annual:,.0f}
+
+*Assumptions:*
+- Automation can handle {automation_factor*100:.0f}% of task time
+- {weeks_per_year} working weeks per year
+- Based on {len(unique_df)} occupation-industry combinations
+- Across {unique_df['Employment'].sum():,.1f}k workers
+
+*Note: This is a conservative estimate. Actual savings may vary based on implementation effectiveness.*"""
+                        
+                        return {
+                            'answer': answer,
+                            'csv_data': pd.DataFrame({
+                                'Metric': ['Weekly Savings', 'Annual Savings', 'Workers Affected (thousands)'],
+                                'Value': [f"${total_weekly:,.0f}", f"${total_annual:,.0f}", f"{unique_df['Employment'].sum():,.1f}"]
+                            })
+                        }
+            
             # Total employment
             if 'total' in query_lower and 'employment' in query_lower:
                 # CRITICAL FIX: De-duplicate by (occupation, industry) before summing
@@ -1061,7 +1198,7 @@ class ClientView:
     def _display_inline_result_csv(self, result_df: pd.DataFrame, query_number: int):
         """
         Display inline CSV download with preview functionality
-        NEW v4.8.5: Enhanced UI with preview, row/column count, file size
+        NEW v4.9.3: Enhanced UI with preview, row/column count, file size
         NOW UNIVERSAL for ALL queries
         """
         # Prepare CSV data

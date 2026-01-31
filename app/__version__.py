@@ -2,134 +2,213 @@
 Labor RAG System Version Information
 =====================================
 
-Version 4.9.2 - Employment Query Routing Fix
+Version 4.9.3 - Follow-up Query Context & Processing Enhancements
 Release Date: January 27, 2026
 
-CRITICAL FIX (v4.9.2):
-- Fixed "total employment" queries returning tasks instead of occupations
-- Root cause: v4.9.0/v4.9.1 defaulted to tasks for all category queries
-- Impact: Employment queries showed task details when users wanted occupation totals
-- Result: Now detects employment keywords and returns occupation summaries
+CRITICAL FIX (v4.9.3):
+- Fixed follow-up queries returning wrong data (context loss)
+- Enhanced follow-up processing with advanced calculations
+- Root cause: Stored background dataset instead of displayed results
+- Impact: Follow-up questions about "above tasks" returned different data
+- Result: Now stores what user SAW + handles complex follow-up queries
+
+PART 1: CONTEXT PRESERVATION FIX
 
 ISSUE EXAMPLE:
-Query: "What's the total employment of workers that create digital documents?"
+Initial Query: "Can you tell me the tasks that could likely benefit from this customer service AI solution?"
 
-User expects: Occupation summary (35 occupations with employment totals) ✅
-Before (v4.9.1):
-- System returned: Task details (89 task descriptions) ❌
-- Table showed: "Task Description | Occupation | Avg Time" ❌
-- CSV had: 35 occupation rows ✅ (correct)
-- Mismatch: CSV (occupations) ≠ UI (tasks) ❌
+System Response:
+- Showed 6 customer service tasks (Advertising Sales, Education, etc.)
+- Total: 923.50k workers across 6 occupations ✅
 
-After (v4.9.2):
-- System returns: Occupation summary (35 occupations) ✅
-- Table shows: "Occupation | Employment | Industries" ✅
-- CSV has: 35 occupation rows ✅
-- Match: CSV (occupations) = UI (occupations) ✅
+Follow-up Query: "How much time could this agent potentially shave off the **above tasks** each week?"
+                                                                         ^^^^^^^^
+User clearly refers to the 6 tasks they just saw
+
+Before v4.9.3:
+- Returned: Animal Caretakers (feeding/grooming animals) ❌
+- Total: 1.52k workers across 1 occupation ❌
+- WRONG DATA! User asked about customer service tasks!
+
+After v4.9.3:
+- Returns: The same 6 customer service tasks user saw ✅
+- Total: 923.50k workers across 6 occupations ✅
+- CORRECT! Matches what user was asking about ✅
 
 ROOT CAUSE:
-v4.9.0/v4.9.1 changed routing to default to tasks for category queries:
+System stored two different datasets:
+1. **filtered_dataframe:** 77 rows (ALL customer_service tasks, including Animal Caretakers)
+2. **semantic_results:** 6 de-duplicated tasks (SHOWN to user)
+
+Follow-up query used #1 (77 rows) instead of #2 (6 displayed tasks)!
+
+SOLUTION (v4.9.3 - Part 1):
+Reversed priority - store what was SHOWN first:
+
 ```python
-# v4.9.0/v4.9.1 LOGIC:
-if wants_task_details:
-    return task_details
-elif wants_occupation_summary:  # Only if "jobs" or "occupations" in query
-    return occupation_summary
-else:
-    return task_details  # ← DEFAULT for category queries
+# NEW LOGIC:
+if semantic_results exists (what user saw):
+    store semantic_results as filtered_dataset  # ← PRIORITY!
+    also store filtered_dataframe as backup context
+elif filtered_dataframe exists:
+    store filtered_dataframe (fallback)
 ```
 
-Problem: "total employment of workers that create X" defaulted to tasks!
-But "total employment" clearly wants occupation-level aggregation, not task details.
+PART 2: ENHANCED FOLLOW-UP PROCESSING
 
-Example breakdown:
-- "workers that create documents" → could be tasks (WHAT they create)
-- "**total employment** of workers that create documents" → occupations (HOW MANY in each job)
-- "what **jobs** create documents" → occupations (WHO creates)
+NEW CAPABILITIES (v4.9.3):
+Added support for complex follow-up queries:
+1. ✅ Time aggregation ("total time per week")
+2. ✅ Top-N ranking ("top 10 occupations by time")
+3. ✅ Cost savings calculations (time × wage × employment)
+4. ✅ Multi-column calculations and aggregations
 
-SOLUTION (v4.9.2):
-Added employment keyword detection:
+REAL-WORLD CONVERSATION FLOW:
 
+Q1: "Can you tell me the jobs that could benefit from this AI solution?"
+→ Returns occupation summary ✅
+
+Q2: "Can you tell me the specific job tasks this solution could help with?"
+→ Returns task details from Q1 occupations ✅
+
+Q3: "How much total time each week do workers spend on these tasks?"
+→ NEW: Aggregates time across tasks ✅
+→ Returns: "Total Time: 145.5 hours across 6 tasks"
+
+Q4: "How much time could this agent potentially shave off the above tasks?"
+→ Uses displayed tasks (v4.9.3 context fix) ✅
+→ LLM provides estimation based on task context
+
+Q5: "Can you show me the top-10 occupations that could save the most time?"
+→ NEW: Aggregates by occupation, ranks, returns top 10 ✅
+→ Returns: Ranked list with time per occupation
+
+Q6: "Can you put the results above in a csv file?"
+→ CSV always generated automatically ✅
+
+Q7: "What marketing recommendations do you have to encourage adoption?"
+→ LLM provides contextual business recommendations ✅
+
+Q8: "What's the dollar savings this solution could achieve?"
+→ NEW: Calculates time × wage × employment ✅
+→ Returns: Weekly and annual savings estimates
+
+TECHNICAL ENHANCEMENTS:
+
+**Enhanced Simple Aggregation (_simple_aggregation_on_filtered_data):**
+
+1. **Time Aggregation:**
 ```python
-# v4.9.2 FIX: Detect employment-related queries
-wants_employment_summary = any(phrase in query_lower for phrase in [
-    'total employment', 'employment of', 'how many workers', 'number of workers',
-    'workforce', 'headcount', 'staff', 'employees'
+if 'total' in query and 'time' in query:
+    total_time = df['Task time per week'].sum()
+    return f"Total Time: {total_time} hours"
+```
+
+2. **Top-N Ranking:**
+```python
+if 'top' in query or 'highest' in query:
+    n = extract_number_from_query(query)  # e.g., 10
+    occupation_time = df.groupby('Occupation')['Time'].sum()
+    top_n = occupation_time.nlargest(n)
+    return ranked_list
+```
+
+3. **Savings Calculation:**
+```python
+if 'savings' in query or 'dollar' in query:
+    # De-duplicate employment
+    unique_df = df.groupby(['Occupation', 'Industry']).agg({
+        'Time': 'sum',
+        'Wage': 'mean',
+        'Employment': 'first'
+    })
+    
+    # Calculate: time × automation_factor × wage × workers
+    weekly_savings = (time * 0.5 * wage * employment * 1000).sum()
+    annual_savings = weekly_savings * 52
+    return savings_report
+```
+
+**Enhanced Query Routing:**
+```python
+# OLD: Only detected basic aggregations
+if any(word in query for word in ['total', 'sum', 'count', 'average']):
+
+# NEW: Detects rankings and calculations too
+is_simple_query = any([
+    # Basic aggregations
+    any(word in query for word in ['total', 'sum', 'count', 'average']),
+    # Rankings
+    any(word in query for word in ['top', 'top-', 'highest', 'most', 'best']),
+    # Calculations
+    any(word in query for word in ['savings', 'save', 'dollar', 'cost'])
 ])
-
-# If query asks for employment data, treat as occupation query
-if wants_employment_summary and not wants_task_details:
-    wants_occupation_summary = True
 ```
-
-Result: Employment queries now correctly route to occupation summaries!
 
 CHANGES MADE:
-- app/rag/retriever.py: Lines 100-110
-  - Added wants_employment_summary detection
-  - Employment keywords: total employment, employment of, how many workers, etc.
-  - Auto-set wants_occupation_summary = True for employment queries
-  - Only if NOT explicitly asking for tasks
+- app/ui/client.py: Lines 365-425 (context preservation)
+- app/ui/client.py: Lines 881-895 (enhanced routing detection)
+- app/ui/client.py: Lines 984-1191 (enhanced aggregation method)
+  - Added time aggregation
+  - Added Top-N ranking with number extraction
+  - Added savings calculation with formula
+  - Improved de-duplication logic
 
-EXAMPLES:
+CONVERSATION SUPPORT:
 
-Query: "What's the total employment of workers that create documents?"
-- v4.9.1: Returns tasks ❌
-- v4.9.2: Returns occupations ✅ (detects "total employment")
+**Supported Follow-up Patterns:**
+- ✅ "total time on these tasks" → aggregation
+- ✅ "top 10 occupations by X" → ranking
+- ✅ "dollar savings" or "cost savings" → calculation
+- ✅ "how many X" → counting
+- ✅ "average Y" → mean calculation
+- ✅ "the above tasks/results" → context reference
+- ✅ General questions → LLM reasoning
 
-Query: "How many workers create digital documents?"
-- v4.9.1: Returns tasks ❌
-- v4.9.2: Returns occupations ✅ (detects "how many workers")
-
-Query: "What's the workforce for document creation?"
-- v4.9.1: Returns tasks ❌
-- v4.9.2: Returns occupations ✅ (detects "workforce")
-
-Query: "Workers that create documents" (no employment keywords)
-- v4.9.1: Returns tasks ✅
-- v4.9.2: Returns tasks ✅ (no change - still defaults to tasks)
-
-Query: "What tasks involve creating documents?"
-- v4.9.1: Returns tasks ✅
-- v4.9.2: Returns tasks ✅ (explicit task query - overrides employment)
-
-ROUTING PRIORITY (v4.9.2):
-1. Explicit task request ("what tasks") → tasks
-2. Employment keywords ("total employment") → occupations
-3. Explicit occupation request ("what jobs") → occupations
-4. Industry request ("by industry") → industries
-5. Default for category queries → tasks
+**Data Preservation:**
+Filtered dataset preserves ALL columns:
+- Task descriptions
+- Occupation names
+- Time per week
+- Employment (thousands)
+- Hourly wage
+- Industry information
 
 IMPACT:
-Before v4.9.2:
-- "total employment of workers" → tasks (wrong) ❌
-- CSV and UI mismatch ❌
-- User confusion: "I wanted employment totals!" ❌
+Before v4.9.3:
+- Follow-up "about above/these tasks" → wrong data ❌
+- "Total time" → not supported ❌
+- "Top 10 by time" → not supported ❌
+- "Dollar savings" → not supported ❌
+- User frustration: Limited conversation capabilities ❌
 
-After v4.9.2:
-- "total employment of workers" → occupations (correct) ✅
-- CSV and UI match ✅
-- User gets employment totals as expected ✅
+After v4.9.3:
+- Follow-up "about above/these tasks" → correct data ✅
+- "Total time" → calculated accurately ✅
+- "Top 10 by time" → ranked results ✅
+- "Dollar savings" → full calculation with assumptions ✅
+- User satisfaction: Natural conversational flow ✅
 
 BACKWARD COMPATIBILITY:
-- Explicit task queries: Still work ("what tasks")
-- Explicit occupation queries: Still work ("what jobs")
-- Category queries without keywords: Still default to tasks
-- NEW: Employment queries now return occupations
+- ✅ All existing queries work the same
+- ✅ Enhanced capabilities for follow-ups
+- ✅ Better UX for conversational queries
+- ✅ Maintains accuracy while adding features
 
 USER VALUE:
-- Employment queries return correct data type
-- CSV and UI are consistent
-- Natural language works intuitively
-- "total employment" gives employment totals (not task lists)
+- Natural multi-turn conversations
+- Complex calculations without leaving interface
+- Contextual continuity (above/these references)
+- Professional analysis capabilities
+- Business value calculations (ROI, savings)
 
 Previous Versions:
-- v4.9.1: Fatal NameError fix (hotfix)
-- v4.9.0: Task routing fix (introduced employment issue)
-- v4.8.8: Validation count fix
+- v4.9.2: Employment query fix
+- v4.9.1: Fatal NameError fix
+- v4.9.0: Task routing fix
 """
 
-__version__ = "4.9.2"
+__version__ = "4.9.3"
 __release_date__ = "2025-01-24"
 __codename__ = "Genesis"  # First version with zero hardcoding
 
